@@ -76,29 +76,11 @@ module.exports = function (config) {
           functions: 100,
           branches: 66,
           overrides: {
-            "lib/AboutPreferences.jsm": {
+            "lib/AboutPreferences.sys.mjs": {
               statements: 98,
               lines: 98,
               functions: 94,
               branches: 66,
-            },
-            "lib/ASRouter.jsm": {
-              statements: 75,
-              lines: 75,
-              functions: 64,
-              branches: 66,
-            },
-            "lib/ASRouterDefaultConfig.jsm": {
-              statements: 0,
-              lines: 0,
-              functions: 0,
-              branches: 0,
-            },
-            "content-src/asrouter/asrouter-utils.js": {
-              statements: 66,
-              lines: 66,
-              functions: 76,
-              branches: 33,
             },
             /**
              * TelemetryFeed.sys.mjs is tested via an xpcshell test
@@ -109,25 +91,19 @@ module.exports = function (config) {
               functions: 9,
               branches: 0,
             },
-            "lib/ASRouterParentProcessMessageHandler.jsm": {
-              statements: 98,
-              lines: 98,
-              functions: 100,
-              branches: 88,
-            },
             "content-src/lib/init-store.js": {
               statements: 98,
               lines: 98,
               functions: 100,
               branches: 100,
             },
-            "lib/ActivityStreamStorage.jsm": {
+            "lib/ActivityStreamStorage.sys.mjs": {
               statements: 100,
               lines: 100,
               functions: 100,
               branches: 83,
             },
-            "lib/DownloadsManager.jsm": {
+            "lib/DownloadsManager.sys.mjs": {
               statements: 100,
               lines: 100,
               functions: 100,
@@ -148,45 +124,39 @@ module.exports = function (config) {
               functions: 100,
               branches: 75,
             },
-            "lib/Screenshots.jsm": {
+            "lib/Screenshots.sys.mjs": {
               statements: 94,
               lines: 94,
               functions: 75,
               branches: 84,
             },
             /**
-             * Store.jsm is tested via an xpcshell test
+             * Store.sys.mjs is tested via an xpcshell test
              */
-            "lib/Store.jsm": {
+            "lib/Store.sys.mjs": {
               statements: 8,
               lines: 8,
               functions: 0,
               branches: 0,
             },
             /**
-             * TopSitesFeed.jsm is tested via an xpcshell test
+             * TopSitesFeed.sys.mjs is tested via an xpcshell test
              */
-            "lib/TopSitesFeed.jsm": {
+            "lib/TopSitesFeed.sys.mjs": {
               statements: 9,
               lines: 9,
               functions: 5,
               branches: 0,
             },
             /**
-             * TopStoresFeed.jsm is not tested in automation and is slated
+             * TopStoresFeed.sys.mjs is not tested in automation and is slated
              * for eventual removal.
              */
-            "lib/TopStoriesFeed.jsm": {
+            "lib/TopStoriesFeed.sys.mjs": {
               statements: 0,
               lines: 0,
               functions: 0,
               branches: 0,
-            },
-            "lib/ToolbarPanelHub.jsm": {
-              statements: 88,
-              lines: 88,
-              functions: 94,
-              branches: 84,
             },
             "lib/*.jsm": {
               statements: 100,
@@ -249,13 +219,16 @@ module.exports = function (config) {
       resolveLoader: {
         alias: { inject: path.join(__dirname, "loaders/inject-loader") },
       },
-      // This resolve config allows us to import with paths relative to the root directory, e.g. "lib/ActivityStream.jsm"
+      // This resolve config allows us to import with paths relative to the root directory, e.g. "lib/ActivityStream.sys.mjs"
       resolve: {
-        extensions: [".js", ".jsx"],
+        extensions: [".js", ".jsx", ".jsm"],
         modules: [PATHS.moduleResolveDirectory, "node_modules"],
         fallback: {
           stream: require.resolve("stream-browserify"),
           buffer: require.resolve("buffer"),
+        },
+        alias: {
+          asrouter: path.join(__dirname, "../asrouter"),
         },
       },
       plugins: [
@@ -291,7 +264,7 @@ module.exports = function (config) {
                     [
                       "./tools/babel-jsm-to-commonjs.js",
                       {
-                        basePath: PATHS.resourcePathRegEx,
+                        basePaths: [[PATHS.resourcePathRegEx, ""]],
                         removeOtherImports: true,
                         replace: true,
                       },
@@ -328,15 +301,7 @@ module.exports = function (config) {
               path.resolve("lib"),
               path.resolve("common"),
             ],
-            exclude: [
-              path.resolve("test"),
-              path.resolve("vendor"),
-              path.resolve("lib/ASRouterTargeting.jsm"),
-              path.resolve("lib/ASRouterTriggerListeners.jsm"),
-              path.resolve("lib/OnboardingMessageProvider.jsm"),
-              path.resolve("lib/CFRMessageProvider.sys.mjs"),
-              path.resolve("lib/CFRPageActions.jsm"),
-            ],
+            exclude: [path.resolve("test"), path.resolve("vendor")],
           },
         ],
       },

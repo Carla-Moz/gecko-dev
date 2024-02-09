@@ -1008,18 +1008,25 @@ bool DrawTargetWebgl::HasDataSnapshot() const {
   return (mSkiaValid && !mSkiaLayer) || (mSnapshot && mSnapshot->HasReadData());
 }
 
-void DrawTargetWebgl::PrepareData() {
+bool DrawTargetWebgl::PrepareSkia() {
   if (!mSkiaValid) {
     ReadIntoSkia();
   } else if (mSkiaLayer) {
     FlattenSkia();
   }
+  return mSkiaValid;
 }
+
+bool DrawTargetWebgl::EnsureDataSnapshot() {
+  return HasDataSnapshot() || PrepareSkia();
+}
+
+void DrawTargetWebgl::PrepareShmem() { PrepareSkia(); }
 
 // Borrow a snapshot that may be used by another thread for composition. Only
 // Skia snapshots are safe to pass around.
 already_AddRefed<SourceSurface> DrawTargetWebgl::GetDataSnapshot() {
-  PrepareData();
+  PrepareSkia();
   return mSkia->Snapshot(mFormat);
 }
 
@@ -1249,9 +1256,9 @@ static const float kRectVertexData[12] = {0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f,
 // buffers.
 void SharedContextWebgl::ResetPathVertexBuffer(bool aChanged) {
   mWebgl->BindBuffer(LOCAL_GL_ARRAY_BUFFER, mPathVertexBuffer.get());
-  mWebgl->BufferData(
+  mWebgl->UninitializedBufferData_SizeOnly(
       LOCAL_GL_ARRAY_BUFFER,
-      std::max(size_t(mPathVertexCapacity), sizeof(kRectVertexData)), nullptr,
+      std::max(size_t(mPathVertexCapacity), sizeof(kRectVertexData)),
       LOCAL_GL_DYNAMIC_DRAW);
   mWebgl->BufferSubData(LOCAL_GL_ARRAY_BUFFER, 0, sizeof(kRectVertexData),
                         (const uint8_t*)kRectVertexData);
@@ -2168,9 +2175,12 @@ bool SharedContextWebgl::DrawRectAccel(
 
   // Check if the drawing options and the pattern support acceleration. Also
   // ensure the framebuffer is prepared for drawing. If not, fall back to using
-  // the Skia target.
-  if (!SupportsDrawOptions(aOptions) || !SupportsPattern(aPattern) ||
-      aStrokeOptions || !mCurrentTarget->MarkChanged()) {
+  // the Skia target. When we need to forcefully update a texture, we must be
+  // careful to override any pattern limits, as the caller ensures the pattern
+  // is otherwise a supported type.
+  if (!SupportsDrawOptions(aOptions) ||
+      (!aForceUpdate && !SupportsPattern(aPattern)) || aStrokeOptions ||
+      !mCurrentTarget->MarkChanged()) {
     // If only accelerated drawing was requested, bail out without software
     // drawing fallback.
     if (!aAccelOnly) {
@@ -3213,18 +3223,15 @@ already_AddRefed<TextureHandle> SharedContextWebgl::DrawStrokeMask(
   mWebgl->FramebufferAttach(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_COLOR_ATTACHMENT0,
                             LOCAL_GL_TEXTURE_2D, attachInfo);
   mWebgl->Viewport(texBounds.x, texBounds.y, texBounds.width, texBounds.height);
+  EnableScissor(texBounds);
   if (!backing->IsInitialized()) {
     backing->MarkInitialized();
-    // If the backing texture is uninitialized, then clear the entire backing
-    // texture to initialize it.
-    DisableScissor();
+    // WebGL implicitly clears the backing texture the first time it is used.
   } else {
-    // Clear only the sub-texture.
-    EnableScissor(texBounds);
+    // Ensure the mask background is clear.
+    mWebgl->ClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+    mWebgl->Clear(LOCAL_GL_COLOR_BUFFER_BIT);
   }
-  // Ensure the mask background is clear.
-  mWebgl->ClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-  mWebgl->Clear(LOCAL_GL_COLOR_BUFFER_BIT);
 
   // Reset any blending when drawing the mask.
   SetBlendState(CompositionOp::OP_OVER);
@@ -4693,11 +4700,11 @@ void DrawTargetWebgl::EndFrame() {
   mSharedContext->ClearCachesIfNecessary();
 }
 
-void DrawTargetWebgl::CopyToSwapChain(
+bool DrawTargetWebgl::CopyToSwapChain(
     layers::RemoteTextureId aId, layers::RemoteTextureOwnerId aOwnerId,
     layers::RemoteTextureOwnerClient* aOwnerClient) {
   if (!mWebglValid && !FlushFromSkia()) {
-    return;
+    return false;
   }
 
   // Copy and swizzle the WebGL framebuffer to the swap chain front buffer.
@@ -4712,8 +4719,8 @@ void DrawTargetWebgl::CopyToSwapChain(
   const RefPtr<layers::ImageBridgeChild> imageBridge =
       layers::ImageBridgeChild::GetSingleton();
   auto texType = layers::TexTypeForWebgl(imageBridge);
-  mSharedContext->mWebgl->CopyToSwapChain(mFramebuffer, texType, options,
-                                          aOwnerClient);
+  return mSharedContext->mWebgl->CopyToSwapChain(mFramebuffer, texType, options,
+                                                 aOwnerClient);
 }
 
 already_AddRefed<DrawTarget> DrawTargetWebgl::CreateSimilarDrawTarget(

@@ -4,7 +4,7 @@
 
 import React, { useEffect, useState } from "react";
 import { Localized } from "./MSLocalized";
-import { AboutWelcomeUtils } from "../lib/aboutwelcome-utils";
+import { AboutWelcomeUtils } from "../lib/aboutwelcome-utils.mjs";
 import { MobileDownloads } from "./MobileDownloads";
 import { MultiSelect } from "./MultiSelect";
 import { Themes } from "./Themes";
@@ -147,7 +147,11 @@ export const ProtonScreenActionButtons = props => {
         </div>
       ) : null}
       {content.secondary_button ? (
-        <SecondaryCTA content={content} handleAction={props.handleAction} />
+        <SecondaryCTA
+          content={content}
+          handleAction={props.handleAction}
+          activeMultiSelect={activeMultiSelect}
+        />
       ) : null}
     </div>
   );
@@ -300,7 +304,6 @@ export class ProtonScreen extends React.PureComponent {
             content={content}
             activeMultiSelect={this.props.activeMultiSelect}
             setActiveMultiSelect={this.props.setActiveMultiSelect}
-            handleAction={this.props.handleAction}
           />
         ) : null}
         {content.tiles && content.tiles.type === "migration-wizard" ? (

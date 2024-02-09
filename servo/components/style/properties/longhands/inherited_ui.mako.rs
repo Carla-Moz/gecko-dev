@@ -26,7 +26,7 @@ ${helpers.single_keyword(
     engines="gecko servo-2013 servo-2020",
     animation_value_type="discrete",
     extra_gecko_values="visiblepainted visiblefill visiblestroke visible painted fill stroke all",
-    spec="https://www.w3.org/TR/SVG11/interact.html#PointerEventsProperty",
+    spec="https://svgwg.org/svg2-draft/interact.html#PointerEventsProperty",
     gecko_enum_prefix="StylePointerEvents",
     affects="paint",
 )}
@@ -75,6 +75,19 @@ ${helpers.single_keyword(
     animation_value_type="discrete",
     spec="Nonstandard (https://developer.mozilla.org/en-US/docs/Web/CSS/-moz-user-focus)",
     enabled_in="chrome",
+    affects="",
+)}
+
+${helpers.single_keyword(
+    "user-find",
+    "auto none",
+    engines="gecko",
+    gecko_ffi_name="mUserFind",
+    gecko_enum_prefix="StyleUserFind",
+    animation_value_type="discrete",
+    gecko_pref="layout.css.user-find.enabled",
+    spec="Prototype of solution proposed in https://github.com/w3c/csswg-drafts/issues/3460",
+    has_effect_on_gecko_scrollbars=False,
     affects="",
 )}
 

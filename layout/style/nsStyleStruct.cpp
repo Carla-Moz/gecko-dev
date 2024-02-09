@@ -2791,7 +2791,6 @@ nsStyleText::nsStyleText(const Document& aDocument)
       mTextAlign(StyleTextAlign::Start),
       mTextAlignLast(StyleTextAlignLast::Auto),
       mTextJustify(StyleTextJustify::Auto),
-      mWhiteSpace(StyleWhiteSpace::Normal),
       mHyphens(StyleHyphens::Manual),
       mRubyAlign(StyleRubyAlign::SpaceAround),
       mRubyPosition(StyleRubyPosition::AlternateOver),
@@ -2828,7 +2827,8 @@ nsStyleText::nsStyleText(const nsStyleText& aSource)
       mTextAlign(aSource.mTextAlign),
       mTextAlignLast(aSource.mTextAlignLast),
       mTextJustify(aSource.mTextJustify),
-      mWhiteSpace(aSource.mWhiteSpace),
+      mWhiteSpaceCollapse(aSource.mWhiteSpaceCollapse),
+      mTextWrapMode(aSource.mTextWrapMode),
       mLineBreak(aSource.mLineBreak),
       mWordBreak(aSource.mWordBreak),
       mOverflowWrap(aSource.mOverflowWrap),
@@ -2855,7 +2855,7 @@ nsStyleText::nsStyleText(const nsStyleText& aSource)
       mTextEmphasisStyle(aSource.mTextEmphasisStyle),
       mHyphenateCharacter(aSource.mHyphenateCharacter),
       mWebkitTextSecurity(aSource.mWebkitTextSecurity),
-      mTextWrap(aSource.mTextWrap) {
+      mTextWrapStyle(aSource.mTextWrapStyle) {
   MOZ_COUNT_CTOR(nsStyleText);
 }
 
@@ -2875,7 +2875,8 @@ nsChangeHint nsStyleText::CalcDifference(const nsStyleText& aNewData) const {
   if ((mTextAlign != aNewData.mTextAlign) ||
       (mTextAlignLast != aNewData.mTextAlignLast) ||
       (mTextTransform != aNewData.mTextTransform) ||
-      (mWhiteSpace != aNewData.mWhiteSpace) ||
+      (mWhiteSpaceCollapse != aNewData.mWhiteSpaceCollapse) ||
+      (mTextWrapMode != aNewData.mTextWrapMode) ||
       (mLineBreak != aNewData.mLineBreak) ||
       (mWordBreak != aNewData.mWordBreak) ||
       (mOverflowWrap != aNewData.mOverflowWrap) ||
@@ -2889,7 +2890,7 @@ nsChangeHint nsStyleText::CalcDifference(const nsStyleText& aNewData) const {
       (mTabSize != aNewData.mTabSize) ||
       (mHyphenateCharacter != aNewData.mHyphenateCharacter) ||
       (mWebkitTextSecurity != aNewData.mWebkitTextSecurity) ||
-      (mTextWrap != aNewData.mTextWrap)) {
+      (mTextWrapStyle != aNewData.mTextWrapStyle)) {
     return NS_STYLE_HINT_REFLOW;
   }
 
@@ -2968,6 +2969,7 @@ nsStyleUI::nsStyleUI()
     : mInert(StyleInert::None),
       mMozTheme(StyleMozTheme::Auto),
       mUserInput(StyleUserInput::Auto),
+      mUserFind(StyleUserFind::Auto),
       mUserModify(StyleUserModify::ReadOnly),
       mUserFocus(StyleUserFocus::Normal),
       mPointerEvents(StylePointerEvents::Auto),
@@ -2983,6 +2985,7 @@ nsStyleUI::nsStyleUI(const nsStyleUI& aSource)
     : mInert(aSource.mInert),
       mMozTheme(aSource.mMozTheme),
       mUserInput(aSource.mUserInput),
+      mUserFind(aSource.mUserFind),
       mUserModify(aSource.mUserModify),
       mUserFocus(aSource.mUserFocus),
       mPointerEvents(aSource.mPointerEvents),
@@ -3040,7 +3043,8 @@ nsChangeHint nsStyleUI::CalcDifference(const nsStyleUI& aNewData) const {
     hint |= NS_STYLE_HINT_VISUAL | kPointerEventsHint;
   }
 
-  if (mUserFocus != aNewData.mUserFocus || mUserInput != aNewData.mUserInput) {
+  if (mUserFocus != aNewData.mUserFocus || mUserInput != aNewData.mUserInput ||
+      mUserFind != aNewData.mUserFind) {
     hint |= nsChangeHint_NeutralChange;
   }
 

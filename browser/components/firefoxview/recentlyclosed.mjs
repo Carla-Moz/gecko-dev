@@ -48,12 +48,14 @@ class RecentlyClosedTabsInView extends ViewPage {
     this.searchQuery = "";
     this.searchResults = null;
     this.showAll = false;
+    this.cumulativeSearches = 0;
   }
 
   static properties = {
     ...ViewPage.properties,
     searchResults: { type: Array },
     showAll: { type: Boolean },
+    cumulativeSearches: { type: Number },
   };
 
   static queries = {
@@ -232,6 +234,16 @@ class RecentlyClosedTabsInView extends ViewPage {
         page: this.recentBrowsing ? "recentbrowsing" : "recentlyclosed",
       }
     );
+    if (this.searchQuery) {
+      const searchesHistogram = Services.telemetry.getKeyedHistogramById(
+        "FIREFOX_VIEW_CUMULATIVE_SEARCHES"
+      );
+      searchesHistogram.add(
+        this.recentBrowsing ? "recentbrowsing" : "recentlyclosed",
+        this.cumulativeSearches
+      );
+      this.cumulativeSearches = 0;
+    }
   }
 
   onDismissTab(e) {
@@ -338,7 +350,7 @@ class RecentlyClosedTabsInView extends ViewPage {
           ?hidden=${!this.selectedTab}
         >
           <h2
-            class="page-header heading-large"
+            class="page-header"
             data-l10n-id="firefoxview-recently-closed-header"
           ></h2>
           ${when(
@@ -350,6 +362,9 @@ class RecentlyClosedTabsInView extends ViewPage {
                 data-l10n-attrs="placeholder"
                 @fxview-search-textbox-query=${this.onSearchQuery}
                 .size=${this.searchTextboxSize}
+                pageName=${this.recentBrowsing
+                  ? "recentbrowsing"
+                  : "recentlyclosed"}
               ></fxview-search-textbox>
             </div>`
           )}
@@ -415,6 +430,9 @@ class RecentlyClosedTabsInView extends ViewPage {
   onSearchQuery(e) {
     this.searchQuery = e.detail.query;
     this.showAll = false;
+    this.cumulativeSearches = this.searchQuery
+      ? this.cumulativeSearches + 1
+      : 0;
     this.#updateSearchResults();
   }
 
@@ -441,6 +459,15 @@ class RecentlyClosedTabsInView extends ViewPage {
     ) {
       event.preventDefault();
       this.showAll = true;
+      Services.telemetry.recordEvent(
+        "firefoxview_next",
+        "search_show_all",
+        "showallbutton",
+        null,
+        {
+          section: "recentlyclosed",
+        }
+      );
     }
   }
 }

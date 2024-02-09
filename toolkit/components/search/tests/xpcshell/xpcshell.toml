@@ -56,8 +56,8 @@ support-files = [
   "data1/engines.json",
   "data1/search-config-v2.json",
   "simple-engines/engines.json",
+  "simple-engines/search-config-v2.json",
   "simple-engines/basic/manifest.json",
-  "simple-engines/hidden/manifest.json",
   "simple-engines/simple/manifest.json",
   "test-extensions/engines.json",
   "test-extensions/plainengine/favicon.ico",
@@ -98,28 +98,28 @@ support-files = [
 
 ["test_engine_multiple_alias.js"]
 
-["test_engine_selector.js"]
+["test_engine_old_selector.js"]
+
+["test_engine_old_selector_application.js"]
+
+["test_engine_old_selector_application_distribution.js"]
+
+["test_engine_old_selector_application_name.js"]
+
+["test_engine_old_selector_order.js"]
+
+["test_engine_old_selector_override.js"]
+
+["test_engine_old_selector_remote_settings.js"]
+tags = "remotesettings searchmain"
+
+["test_engine_old_selector_remote_override.js"]
 
 ["test_engine_selector_engine_orders.js"]
 
 ["test_engine_selector_defaults.js"]
 
-["test_engine_selector_application.js"]
-
-["test_engine_selector_application_distribution.js"]
-
-["test_engine_selector_application_name.js"]
-
 ["test_engine_selector_environment.js"]
-
-["test_engine_selector_order.js"]
-
-["test_engine_selector_override.js"]
-
-["test_engine_selector_remote_settings.js"]
-tags = "remotesettings searchmain"
-
-["test_engine_selector_remote_override.js"]
 
 ["test_engine_selector_variants.js"]
 

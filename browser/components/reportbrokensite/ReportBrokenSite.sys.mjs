@@ -8,12 +8,21 @@ const DEFAULT_NEW_REPORT_ENDPOINT = "https://webcompat.com/issues/new";
 
 import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
 
+const lazy = {};
+
+ChromeUtils.defineESModuleGetters(lazy, {
+  ClientEnvironment: "resource://normandy/lib/ClientEnvironment.sys.mjs",
+});
+
 const gDescriptionCheckRE = /\S/;
 
 class ViewState {
   #doc;
   #mainView;
   #reportSentView;
+  #formElement;
+  #reasonOptions;
+  #randomizeReasons = false;
 
   currentTabURI;
   currentTabWebcompatDetailsPromise;
@@ -28,7 +37,16 @@ class ViewState {
       this.#doc,
       "report-broken-site-popup-reportSentView"
     );
+    this.#formElement = doc.ownerGlobal.PanelMultiView.getViewNode(
+      this.#doc,
+      "report-broken-site-panel-form"
+    );
     ViewState.#cache.set(doc, this);
+
+    this.#reasonOptions = Array.from(
+      // Skip the first option ("choose reason"), since it always stays at the top
+      this.reasonInput.querySelectorAll(`option:not(:first-of-type)`)
+    );
   }
 
   static #cache = new WeakMap();
@@ -82,14 +100,8 @@ class ViewState {
     return this.#mainView.querySelector("#report-broken-site-popup-reason");
   }
 
-  get reasonInputValidationHelper() {
-    return this.#mainView.querySelector(
-      "#report-broken-site-popup-missing-reason-validation-helper"
-    );
-  }
-
   get reason() {
-    const reason = this.reasonInput.selectedItem.id.replace(
+    const reason = this.reasonInput.selectedOptions[0].id.replace(
       ViewState.REASON_CHOICES_ID_PREFIX,
       ""
     );
@@ -97,26 +109,73 @@ class ViewState {
   }
 
   set reason(value) {
-    this.reasonInput.selectedItem = this.#mainView.querySelector(
+    this.reasonInput.selectedIndex = this.#mainView.querySelector(
       `#${ViewState.REASON_CHOICES_ID_PREFIX}${value}`
-    );
+    ).index;
   }
 
-  static CHOOSE_A_REASON_OPT_ID = "report-broken-site-popup-reason-choose";
+  #randomizeReasonsOrdering() {
+    // As with QuickActionsLoaderDefault, we use the Normandy
+    // randomizationId as our PRNG seed to ensure that the same
+    // user should always get the same sequence.
+    const seed = [...lazy.ClientEnvironment.randomizationId]
+      .map(x => x.charCodeAt(0))
+      .reduce((sum, a) => sum + a, 0);
 
-  get chooseAReasonOption() {
-    return this.#mainView.querySelector(`#${ViewState.CHOOSE_A_REASON_OPT_ID}`);
+    const items = [...this.#reasonOptions];
+    this.#shuffleArray(items, seed);
+    items[0].parentNode.append(...items);
+  }
+
+  #shuffleArray(array, seed) {
+    // We use SplitMix as it is reputed to have a strong distribution of values.
+    const prng = this.#getSplitMix32PRNG(seed);
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(prng() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+  }
+
+  // SplitMix32 is a splittable pseudorandom number generator (PRNG).
+  // License: MIT (https://github.com/attilabuti/SimplexNoise)
+  #getSplitMix32PRNG(a) {
+    return () => {
+      a |= 0;
+      a = (a + 0x9e3779b9) | 0;
+      var t = a ^ (a >>> 16);
+      t = Math.imul(t, 0x21f0aaad);
+      t = t ^ (t >>> 15);
+      t = Math.imul(t, 0x735a2d97);
+      return ((t = t ^ (t >>> 15)) >>> 0) / 4294967296;
+    };
+  }
+
+  #restoreReasonsOrdering() {
+    this.#reasonOptions[0].parentNode.append(...this.#reasonOptions);
+  }
+
+  get form() {
+    return this.#formElement;
   }
 
   reset() {
     this.currentTabWebcompatDetailsPromise = undefined;
+    this.form.reset();
 
     this.resetURLToCurrentTab();
+  }
 
-    this.description = "";
-
-    this.reason = "choose";
-    this.showOrHideReasonValidationMessage(false);
+  ensureReasonOrderingMatchesPref() {
+    const randomizeReasons =
+      this.#doc.ownerGlobal.ReportBrokenSite.randomizeReasons;
+    if (randomizeReasons != this.#randomizeReasons) {
+      if (randomizeReasons) {
+        this.#randomizeReasonsOrdering();
+      } else {
+        this.#restoreReasonsOrdering();
+      }
+      this.#randomizeReasons = randomizeReasons;
+    }
   }
 
   get isURLValid() {
@@ -127,19 +186,8 @@ class ViewState {
     const { reasonEnabled, reasonIsOptional } =
       this.#doc.ownerGlobal.ReportBrokenSite;
     return (
-      !reasonEnabled ||
-      reasonIsOptional ||
-      this.reasonInput.selectedItem.id !== ViewState.CHOOSE_A_REASON_OPT_ID
+      !reasonEnabled || reasonIsOptional || this.reasonInput.checkValidity()
     );
-  }
-
-  showOrHideReasonValidationMessage(showOrHide) {
-    // If showOrHide === true, show the message. If === false, hide it.
-    // Otherwise, show or hide based on whether the input is presently valid.
-    showOrHide = showOrHide ?? !this.isReasonValid;
-    const validation = this.reasonInputValidationHelper;
-    validation.setCustomValidity(showOrHide ? "required" : "");
-    validation.reportValidity();
   }
 
   get isDescriptionValid() {
@@ -150,20 +198,21 @@ class ViewState {
     );
   }
 
-  checkAndShowInputValidity() {
-    // This function focuses on the first invalid input (if any), updates the validity of
-    // the helper input for the reason drop-down (so CSS :invalid state is updated),
-    // and returns true if the form has an invalid input (false otherwise).
-    this.showOrHideReasonValidationMessage();
-    const { isURLValid, isReasonValid, isDescriptionValid } = this;
-    if (!isURLValid) {
-      this.urlInput.focus();
-    } else if (!isReasonValid) {
-      this.reasonInput.openMenu(true);
-    } else if (!isDescriptionValid) {
-      this.descriptionInput.focus();
+  #focusMainViewElement(toFocus) {
+    const panelview = this.#doc.ownerGlobal.PanelView.forNode(this.#mainView);
+    panelview.selectedElement = toFocus;
+    panelview.focusSelectedElement();
+  }
+
+  focusFirstInvalidElement() {
+    if (!this.isURLValid) {
+      this.#focusMainViewElement(this.urlInput);
+    } else if (!this.isReasonValid) {
+      this.#focusMainViewElement(this.reasonInput);
+      this.reasonInput.showPicker();
+    } else if (!this.isDescriptionValid) {
+      this.#focusMainViewElement(this.descriptionInput);
     }
-    return !(isURLValid && isReasonValid && isDescriptionValid);
   }
 
   get sendMoreInfoLink() {
@@ -245,6 +294,8 @@ export var ReportBrokenSite = new (class ReportBrokenSite {
     1: "optional",
     2: "required",
   };
+  static REASON_RANDOMIZED_PREF =
+    "ui.new-webcompat-reporter.reason-dropdown.randomized";
   static SEND_MORE_INFO_PREF = "ui.new-webcompat-reporter.send-more-info-link";
   static NEW_REPORT_ENDPOINT_PREF =
     "ui.new-webcompat-reporter.new-report-endpoint";
@@ -260,6 +311,7 @@ export var ReportBrokenSite = new (class ReportBrokenSite {
 
   #reasonEnabled = false;
   #reasonIsOptional = true;
+  #randomizeReasons = false;
   #descriptionIsOptional = true;
   #sendMoreInfoEnabled = true;
 
@@ -271,6 +323,10 @@ export var ReportBrokenSite = new (class ReportBrokenSite {
     return this.#reasonIsOptional;
   }
 
+  get randomizeReasons() {
+    return this.#randomizeReasons;
+  }
+
   get descriptionIsOptional() {
     return this.#descriptionIsOptional;
   }
@@ -279,6 +335,7 @@ export var ReportBrokenSite = new (class ReportBrokenSite {
     for (const [name, [pref, dflt]] of Object.entries({
       dataReportingPref: [ReportBrokenSite.DATAREPORTING_PREF, false],
       reasonPref: [ReportBrokenSite.REASON_PREF, 0],
+      reasonRandomizedPref: [ReportBrokenSite.REASON_RANDOMIZED_PREF, false],
       sendMoreInfoPref: [ReportBrokenSite.SEND_MORE_INFO_PREF, false],
       newReportEndpointPref: [
         ReportBrokenSite.NEW_REPORT_ENDPOINT_PREF,
@@ -440,40 +497,22 @@ export var ReportBrokenSite = new (class ReportBrokenSite {
 
     this.#sendMoreInfoEnabled = this.sendMoreInfoPref;
     this.#newReportEndpoint = this.newReportEndpointPref;
-  }
 
-  #random(seed) {
-    let x = Math.sin(seed) * 10000;
-    return x - Math.floor(x);
-  }
-
-  #shuffleArray(array) {
-    const seed = Math.round(new Date().getTime());
-    for (let i = array.length - 1; i > 0; i--) {
-      const j = Math.floor(this.#random(seed) * (i + 1));
-      [array[i], array[j]] = [array[j], array[i]];
-    }
-  }
-
-  #randomizeDropdownItems(dropdown) {
-    if (!dropdown) {
-      return;
-    }
-
-    // Leave the first option ("choose reason") at the start
-    const items = Array.from(
-      dropdown.querySelectorAll(`menuitem:not(:first-of-type)`)
-    );
-    this.#shuffleArray(items);
-    items[0].parentNode.append(...items);
+    this.#randomizeReasons = this.reasonRandomizedPref;
   }
 
   #initMainView(state) {
-    state.sendButton.addEventListener("command", async ({ target }) => {
-      if (state.checkAndShowInputValidity()) {
+    state.sendButton.addEventListener("command", () => {
+      state.form.requestSubmit();
+    });
+
+    state.form.addEventListener("submit", async event => {
+      event.preventDefault();
+      if (!state.form.checkValidity()) {
+        state.focusFirstInvalidElement();
         return;
       }
-      const multiview = target.closest("panelmultiview");
+      const multiview = event.target.closest("panelmultiview");
       this.#recordGleanEvent("send");
       await this.#sendReportAsGleanPing(state);
       multiview.showSubView("report-broken-site-popup-reportSentView");
@@ -493,22 +532,6 @@ export var ReportBrokenSite = new (class ReportBrokenSite {
       await this.#openWebCompatTab(tabbrowser);
       state.reset();
     });
-
-    const reasonDropdown = state.reasonInput;
-    reasonDropdown.addEventListener("command", () => {
-      state.showOrHideReasonValidationMessage();
-    });
-
-    this.#randomizeDropdownItems(reasonDropdown);
-
-    const menupopup = reasonDropdown.querySelector("menupopup");
-    const onDropDownShowOrHide = ({ type }) => {
-      // Hide "choose a reason" while the user has the reason dropdown open
-      const shouldHide = type == "popupshowing";
-      state.chooseAReasonOption.hidden = shouldHide;
-    };
-    menupopup.addEventListener("popupshowing", onDropDownShowOrHide);
-    menupopup.addEventListener("popuphiding", onDropDownShowOrHide);
   }
 
   #initReportSentView(state) {
@@ -541,6 +564,9 @@ export var ReportBrokenSite = new (class ReportBrokenSite {
     sendMoreInfoLink.hidden = !this.#sendMoreInfoEnabled;
 
     state.reasonInput.hidden = !this.#reasonEnabled;
+    state.reasonInput.required = this.#reasonEnabled && !this.#reasonIsOptional;
+
+    state.ensureReasonOrderingMatchesPref();
 
     state.reasonLabelRequired.hidden =
       !this.#reasonEnabled || this.#reasonIsOptional;

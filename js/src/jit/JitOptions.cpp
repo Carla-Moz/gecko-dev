@@ -297,7 +297,7 @@ DefaultJitOptions::DefaultJitOptions() {
   SET_DEFAULT(spectreObjectMitigations, true);
   SET_DEFAULT(spectreStringMitigations, true);
   SET_DEFAULT(spectreValueMasking, true);
-  SET_DEFAULT(spectreJitToCxxCalls, true);
+  SET_DEFAULT(spectreJitToCxxCalls, false);
 #endif
 
   // Whether the W^X policy is enforced to mark JIT code pages as either
@@ -396,6 +396,8 @@ DefaultJitOptions::DefaultJitOptions() {
 #else
   SET_DEFAULT(regexp_peephole_optimization, true);
 #endif
+
+  SET_DEFAULT(useHasSeenEmulatesUndefinedFuse, false);
 }
 
 bool DefaultJitOptions::isSmallFunction(JSScript* script) const {

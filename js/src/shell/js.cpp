@@ -148,6 +148,7 @@
 #include "js/MemoryFunctions.h"
 #include "js/Modules.h"  // JS::GetModulePrivate, JS::SetModule{DynamicImport,Metadata,Resolve}Hook, JS::SetModulePrivate
 #include "js/Object.h"  // JS::GetClass, JS::GetCompartment, JS::GetReservedSlot, JS::SetReservedSlot
+#include "js/Prefs.h"
 #include "js/Principals.h"
 #include "js/Printer.h"  // QuoteString
 #include "js/Printf.h"
@@ -734,24 +735,12 @@ bool shell::enableTestWasmAwaitTier2 = false;
 bool shell::enableSourcePragmas = true;
 bool shell::enableAsyncStacks = false;
 bool shell::enableAsyncStackCaptureDebuggeeOnly = false;
-bool shell::enableWeakRefs = false;
 bool shell::enableToSource = false;
-bool shell::enablePropertyErrorMessageFix = false;
-bool shell::enableIteratorHelpers = false;
-bool shell::enableShadowRealms = false;
-// Pref for String.prototype.{is,to}WellFormed() methods.
-bool shell::enableWellFormedUnicodeStrings = true;
-bool shell::enableArrayGrouping = false;
-#ifdef NIGHTLY_BUILD
-// Pref for new Set.prototype methods.
-bool shell::enableNewSetMethods = false;
-// Pref for ArrayBuffer.prototype.transfer{,ToFixedLength}() methods.
-bool shell::enableSymbolsAsWeakMapKeys = false;
+#ifdef ENABLE_JSON_PARSE_WITH_SOURCE
+bool shell::enableJSONParseWithSource = false;
 #endif
-bool shell::enableArrayBufferTransfer = true;
 bool shell::enableImportAttributes = false;
 bool shell::enableImportAttributesAssertSyntax = false;
-bool shell::enableDestructuringFuse = true;
 #ifdef JS_GC_ZEAL
 uint32_t shell::gZealBits = 0;
 uint32_t shell::gZealFrequency = 0;
@@ -763,8 +752,6 @@ bool shell::reportWarnings = true;
 bool shell::compileOnly = false;
 bool shell::disableOOMFunctions = false;
 bool shell::defaultToSameCompartment = true;
-
-bool shell::useFdlibmForSinCosTan = false;
 
 #ifdef DEBUG
 bool shell::dumpEntrainedVariables = false;
@@ -4129,19 +4116,9 @@ static void SetStandardRealmOptions(JS::RealmOptions& options) {
   options.creationOptions()
       .setSharedMemoryAndAtomicsEnabled(enableSharedMemory)
       .setCoopAndCoepEnabled(false)
-      .setWeakRefsEnabled(enableWeakRefs
-                              ? JS::WeakRefSpecifier::EnabledWithCleanupSome
-                              : JS::WeakRefSpecifier::Disabled)
       .setToSourceEnabled(enableToSource)
-      .setPropertyErrorMessageFixEnabled(enablePropertyErrorMessageFix)
-      .setIteratorHelpersEnabled(enableIteratorHelpers)
-      .setShadowRealmsEnabled(enableShadowRealms)
-      .setWellFormedUnicodeStringsEnabled(enableWellFormedUnicodeStrings)
-      .setArrayGroupingEnabled(enableArrayGrouping)
-      .setArrayBufferTransferEnabled(enableArrayBufferTransfer)
-#ifdef NIGHTLY_BUILD
-      .setNewSetMethodsEnabled(enableNewSetMethods)
-      .setSymbolsAsWeakMapKeysEnabled(enableSymbolsAsWeakMapKeys)
+#ifdef ENABLE_JSON_PARSE_WITH_SOURCE
+      .setJSONParseWithSource(enableJSONParseWithSource)
 #endif
       ;
 }
@@ -6173,6 +6150,11 @@ static bool OffThreadCompileModuleToStencil(JSContext* cx, unsigned argc,
     if (!js::ParseCompileOptions(cx, options, opts, &fileNameBytes)) {
       return false;
     }
+
+    if (options.lineno == 0) {
+      JS_ReportErrorASCII(cx, "Module cannot be compiled with lineNumber == 0");
+      return false;
+    }
   }
 
   options.setIsRunOnce(true).setSourceIsLazy(false);
@@ -7463,6 +7445,7 @@ struct SharedObjectMailbox {
       SharedArrayRawBuffer* buffer;
       size_t length;
       bool isHugeMemory;  // For a WasmMemory tag, otherwise false
+      bool isGrowable;    // For GrowableSharedArrayBuffer, otherwise false
     } sarb;
     JS::WasmModule* module;
     double number;
@@ -7543,8 +7526,12 @@ static bool GetSharedObject(JSContext* cx, unsigned argc, Value* vp) {
         // If the allocation fails we must decrement the refcount before
         // returning.
 
-        Rooted<ArrayBufferObjectMaybeShared*> maybesab(
-            cx, SharedArrayBufferObject::New(cx, buf, length));
+        Rooted<ArrayBufferObjectMaybeShared*> maybesab(cx);
+        if (!mbx->val.sarb.isGrowable) {
+          maybesab = SharedArrayBufferObject::New(cx, buf, length);
+        } else {
+          maybesab = SharedArrayBufferObject::NewGrowable(cx, buf, length);
+        }
         if (!maybesab) {
           buf->dropReference();
           return false;
@@ -7619,8 +7606,9 @@ static bool SetSharedObject(JSContext* cx, unsigned argc, Value* vp) {
                                            &obj->as<SharedArrayBufferObject>());
       tag = MailboxTag::SharedArrayBuffer;
       value.sarb.buffer = sab->rawBufferObject();
-      value.sarb.length = sab->byteLength();
+      value.sarb.length = sab->byteLengthOrMaxByteLength();
       value.sarb.isHugeMemory = false;
+      value.sarb.isGrowable = sab->isGrowable();
       if (!value.sarb.buffer->addReference()) {
         JS_ReportErrorASCII(cx,
                             "Reference count overflow on SharedArrayBuffer");
@@ -7634,10 +7622,12 @@ static bool SetSharedObject(JSContext* cx, unsigned argc, Value* vp) {
             cx, &obj->as<WasmMemoryObject>()
                      .buffer()
                      .as<SharedArrayBufferObject>());
+        MOZ_ASSERT(!sab->isGrowable(), "unexpected growable shared buffer");
         tag = MailboxTag::WasmMemory;
         value.sarb.buffer = sab->rawBufferObject();
         value.sarb.length = sab->byteLength();
         value.sarb.isHugeMemory = obj->as<WasmMemoryObject>().isHuge();
+        value.sarb.isGrowable = false;
         if (!value.sarb.buffer->addReference()) {
           JS_ReportErrorASCII(cx,
                               "Reference count overflow on SharedArrayBuffer");
@@ -11326,6 +11316,78 @@ static bool WriteSelfHostedXDRFile(JSContext* cx, JS::SelfHostedCache buffer) {
   return true;
 }
 
+template <typename T>
+static bool ParsePrefValue(const char* name, const char* val, T* result) {
+  if constexpr (std::is_same_v<T, bool>) {
+    if (strcmp(val, "true") == 0) {
+      *result = true;
+      return true;
+    }
+    if (strcmp(val, "false") == 0) {
+      *result = false;
+      return true;
+    }
+    fprintf(stderr, "Invalid value for boolean pref %s: %s\n", name, val);
+    return false;
+  } else {
+    static_assert(std::is_same_v<T, int32_t> || std::is_same_v<T, uint32_t>);
+    char* end;
+    long v = strtol(val, &end, 10);
+    if (end != val + strlen(val) || static_cast<long>(static_cast<T>(v)) != v) {
+      fprintf(stderr, "Invalid value for integer pref %s: %s\n", name, val);
+      return false;
+    }
+    *result = static_cast<T>(v);
+    return true;
+  }
+}
+
+static bool SetJSPref(const char* pref) {
+  const char* assign = strchr(pref, '=');
+  if (!assign) {
+    fprintf(stderr, "Missing '=' for --setpref\n");
+    return false;
+  }
+
+  size_t nameLen = assign - pref;
+  const char* valStart = assign + 1;  // Skip '='.
+
+  // Search for a matching pref and try to set it.
+#define CHECK_PREF(NAME, CPP_NAME, TYPE, SETTER, IS_STARTUP_PREF)         \
+  if (nameLen == strlen(NAME) && memcmp(pref, NAME, strlen(NAME)) == 0) { \
+    TYPE v;                                                               \
+    if (!ParsePrefValue<TYPE>(NAME, valStart, &v)) {                      \
+      return false;                                                       \
+    }                                                                     \
+    JS::Prefs::SETTER(v);                                                 \
+    return true;                                                          \
+  }
+  FOR_EACH_JS_PREF(CHECK_PREF)
+#undef CHECK_PREF
+
+  fprintf(stderr, "Invalid pref name: %s\n", pref);
+  return false;
+}
+
+static void ListJSPrefs() {
+  auto printPref = [](const char* name, auto defaultVal) {
+    using T = decltype(defaultVal);
+    if constexpr (std::is_same_v<T, bool>) {
+      fprintf(stderr, "%s=%s\n", name, defaultVal ? "true" : "false");
+    } else if constexpr (std::is_same_v<T, int32_t>) {
+      fprintf(stderr, "%s=%d\n", name, defaultVal);
+    } else {
+      static_assert(std::is_same_v<T, uint32_t>);
+      fprintf(stderr, "%s=%u\n", name, defaultVal);
+    }
+  };
+
+#define PRINT_PREF(NAME, CPP_NAME, TYPE, SETTER, IS_STARTUP_PREF) \
+  printPref(NAME, JS::Prefs::CPP_NAME());
+  FOR_EACH_JS_PREF(PRINT_PREF)
+#undef PRINT_PREF
+}
+
 static bool SetGCParameterFromArg(JSContext* cx, char* arg) {
   char* c = strchr(arg, '=');
   if (!c) {
@@ -11688,6 +11750,8 @@ bool InitOptionParser(OptionParser& op) {
       !op.addBoolOption('\0', "less-debug-code",
                         "Emit less machine code for "
                         "checking assertions under DEBUG.") ||
+      !op.addBoolOption('\0', "enable-emulates-undefined-fuse",
+                        "Use the invalidating emulates undefined fuse") ||
       !op.addBoolOption('\0', "disable-weak-refs", "Disable weak references") ||
       !op.addBoolOption('\0', "disable-tosource", "Disable toSource/uneval") ||
       !op.addBoolOption('\0', "disable-property-error-message-fix",
@@ -11695,6 +11759,10 @@ bool InitOptionParser(OptionParser& op) {
                         "property of null or undefined") ||
       !op.addBoolOption('\0', "enable-iterator-helpers",
                         "Enable iterator helpers") ||
+#ifdef ENABLE_JSON_PARSE_WITH_SOURCE
+      !op.addBoolOption('\0', "enable-json-parse-with-source",
+                        "Enable JSON.parse with source") ||
+#endif
       !op.addBoolOption('\0', "enable-shadow-realms", "Enable ShadowRealms") ||
       !op.addBoolOption('\0', "disable-array-grouping",
                         "Disable Object.groupBy and Map.groupBy") ||
@@ -11707,6 +11775,9 @@ bool InitOptionParser(OptionParser& op) {
                         "Disable ArrayBuffer.prototype.transfer() methods") ||
       !op.addBoolOption('\0', "enable-symbols-as-weakmap-keys",
                         "Enable Symbols As WeakMap keys") ||
+      !op.addBoolOption(
+          '\0', "enable-arraybuffer-resizable",
+          "Enable resizable ArrayBuffers and growable SharedArrayBuffers") ||
       !op.addBoolOption('\0', "enable-top-level-await",
                         "Enable top-level await") ||
       !op.addBoolOption('\0', "enable-class-static-blocks",
@@ -12026,6 +12097,12 @@ bool InitOptionParser(OptionParser& op) {
 #endif
       !op.addStringOption('\0', "telemetry-dir", "[directory]",
                           "Output telemetry results in a directory") ||
+      !op.addMultiStringOption('\0', "setpref", "name=val",
+                               "Set the value of a JS pref. Use --list-prefs "
+                               "to print all pref names.") ||
+      !op.addBoolOption(
+          '\0', "list-prefs",
+          "Print list of prefs that can be set with --setpref.") ||
       !op.addBoolOption('\0', "use-fdlibm-for-sin-cos-tan",
                         "Use fdlibm for Math.sin, Math.cos, and Math.tan")) {
     return false;
@@ -12038,6 +12115,52 @@ bool InitOptionParser(OptionParser& op) {
 }
 
 bool SetGlobalOptionsPreJSInit(const OptionParser& op) {
+  for (MultiStringRange args = op.getMultiStringOption("setpref");
+       !args.empty(); args.popFront()) {
+    if (!SetJSPref(args.front())) {
+      return false;
+    }
+  }
+
+  // Override pref values for prefs that have a custom shell flag.
+  // If you're adding a new feature, consider using --setpref instead.
+
+  JS::Prefs::setAtStartup_array_grouping(
+      !op.getBoolOption("disable-array-grouping"));
+  JS::Prefs::setAtStartup_arraybuffer_transfer(
+      !op.getBoolOption("disable-arraybuffer-transfer"));
+  JS::Prefs::set_experimental_shadow_realms(
+      op.getBoolOption("enable-shadow-realms"));
+  JS::Prefs::setAtStartup_well_formed_unicode_strings(
+      !op.getBoolOption("disable-well-formed-unicode-strings"));
+#ifdef NIGHTLY_BUILD
+  JS::Prefs::setAtStartup_experimental_arraybuffer_resizable(
+      op.getBoolOption("enable-arraybuffer-resizable"));
+  JS::Prefs::setAtStartup_experimental_sharedarraybuffer_growable(
+      op.getBoolOption("enable-arraybuffer-resizable"));
+  JS::Prefs::setAtStartup_experimental_iterator_helpers(
+      op.getBoolOption("enable-iterator-helpers"));
+  JS::Prefs::setAtStartup_experimental_new_set_methods(
+      op.getBoolOption("enable-new-set-methods"));
+  JS::Prefs::setAtStartup_experimental_symbols_as_weakmap_keys(
+      op.getBoolOption("enable-symbols-as-weakmap-keys"));
+#endif
+
+  JS::Prefs::setAtStartup_weakrefs(!op.getBoolOption("disable-weak-refs"));
+  JS::Prefs::setAtStartup_experimental_weakrefs_expose_cleanupSome(true);
+
+  JS::Prefs::setAtStartup_destructuring_fuse(
+      !op.getBoolOption("disable-destructuring-fuse"));
+  JS::Prefs::setAtStartup_use_fdlibm_for_sin_cos_tan(
+      op.getBoolOption("use-fdlibm-for-sin-cos-tan"));
+  JS::Prefs::setAtStartup_property_error_message_fix(
+      !op.getBoolOption("disable-property-error-message-fix"));
+
+  if (op.getBoolOption("list-prefs")) {
+    ListJSPrefs();
+    return false;
+  }
+
   // Note: DisableJitBackend must be called before JS_InitWithFailureDiagnostic.
   if (op.getBoolOption("no-jit-backend")) {
     JS::DisableJitBackend();
@@ -12223,37 +12346,21 @@ bool SetContextOptions(JSContext* cx, const OptionParser& op) {
   enableAsyncStacks = !op.getBoolOption("no-async-stacks");
   enableAsyncStackCaptureDebuggeeOnly =
       op.getBoolOption("async-stacks-capture-debuggee-only");
-  enableWeakRefs = !op.getBoolOption("disable-weak-refs");
   enableToSource = !op.getBoolOption("disable-tosource");
-  enablePropertyErrorMessageFix =
-      !op.getBoolOption("disable-property-error-message-fix");
-  enableIteratorHelpers = op.getBoolOption("enable-iterator-helpers");
-  enableShadowRealms = op.getBoolOption("enable-shadow-realms");
-  enableWellFormedUnicodeStrings =
-      !op.getBoolOption("disable-well-formed-unicode-strings");
-  enableArrayGrouping = !op.getBoolOption("disable-array-grouping");
-#ifdef NIGHTLY_BUILD
-  enableNewSetMethods = op.getBoolOption("enable-new-set-methods");
-  enableSymbolsAsWeakMapKeys =
-      op.getBoolOption("enable-symbols-as-weakmap-keys");
+#ifdef ENABLE_JSON_PARSE_WITH_SOURCE
+  enableJSONParseWithSource = op.getBoolOption("enable-json-parse-with-source");
 #endif
-  enableArrayBufferTransfer = !op.getBoolOption("disable-arraybuffer-transfer");
   enableImportAttributesAssertSyntax =
       op.getBoolOption("enable-import-assertions");
   enableImportAttributes = op.getBoolOption("enable-import-attributes") ||
                            enableImportAttributesAssertSyntax;
-  enableDestructuringFuse = !op.getBoolOption("disable-destructuring-fuse");
-  useFdlibmForSinCosTan = op.getBoolOption("use-fdlibm-for-sin-cos-tan");
 
   JS::ContextOptionsRef(cx)
       .setSourcePragmas(enableSourcePragmas)
       .setAsyncStack(enableAsyncStacks)
       .setAsyncStackCaptureDebuggeeOnly(enableAsyncStackCaptureDebuggeeOnly)
       .setImportAttributes(enableImportAttributes)
-      .setImportAttributesAssertSyntax(enableImportAttributesAssertSyntax)
-      .setEnableDestructuringFuse(enableDestructuringFuse);
-
-  JS::SetUseFdlibmForSinCosTan(useFdlibmForSinCosTan);
+      .setImportAttributesAssertSyntax(enableImportAttributesAssertSyntax);
 
   if (const char* str = op.getStringOption("shared-memory")) {
     if (strcmp(str, "off") == 0) {
@@ -12724,6 +12831,10 @@ bool SetContextJITOptions(JSContext* cx, const OptionParser& op) {
 
   if (op.getBoolOption("less-debug-code")) {
     jit::JitOptions.lessDebugCode = true;
+  }
+
+  if (op.getBoolOption("enable-emulates-undefined-fuse")) {
+    jit::JitOptions.useHasSeenEmulatesUndefinedFuse = true;
   }
 
   int32_t inliningEntryThreshold = op.getIntOption("inlining-entry-threshold");

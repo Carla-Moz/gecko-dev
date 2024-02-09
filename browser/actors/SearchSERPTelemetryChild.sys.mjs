@@ -30,6 +30,7 @@ XPCOMUtils.defineLazyPreferenceGetter(
 const SEARCH_TELEMETRY_SHARED = {
   PROVIDER_INFO: "SearchTelemetry:ProviderInfo",
   LOAD_TIMEOUT: "SearchTelemetry:LoadTimeout",
+  SPA_LOAD_TIMEOUT: "SearchTelemetry:SPALoadTimeout",
 };
 
 /**
@@ -828,6 +829,8 @@ class SearchAdImpression {
     let url = document.documentURI;
     let callback = documentToEventCallbackMap.get(document);
 
+    let removeListenerCallbacks = [];
+
     for (let element of elements) {
       let clickCallback = () => {
         callback({
@@ -835,6 +838,9 @@ class SearchAdImpression {
           url,
           action: clickAction,
         });
+        if (clickAction == "submitted") {
+          documentToSubmitMap.set(document, true);
+        }
       };
       element.addEventListener("click", clickCallback);
 
@@ -846,18 +852,40 @@ class SearchAdImpression {
             action: keydownEnterAction,
           });
         }
+        if (keydownEnterAction == "submitted") {
+          documentToSubmitMap.set(document, true);
+        }
       };
       element.addEventListener("keydown", keydownCallback);
 
-      document.ownerGlobal.addEventListener(
-        "pagehide",
-        () => {
-          element.removeEventListener("click", clickCallback);
-          element.removeEventListener("keydown", keydownCallback);
-        },
-        { once: true }
-      );
+      removeListenerCallbacks.push(() => {
+        element.removeEventListener("click", clickCallback);
+        element.removeEventListener("keydown", keydownCallback);
+      });
     }
+
+    document.ownerGlobal.addEventListener(
+      "pagehide",
+      () => {
+        let callbacks = documentToRemoveEventListenersMap.get(document);
+        if (callbacks) {
+          for (let removeEventListenerCallback of callbacks) {
+            removeEventListenerCallback();
+          }
+          documentToRemoveEventListenersMap.delete(document);
+        }
+      },
+      { once: true }
+    );
+
+    // The map might have entries from previous callers, so we must ensure
+    // we don't discard existing event listener callbacks.
+    if (documentToRemoveEventListenersMap.has(document)) {
+      let callbacks = documentToRemoveEventListenersMap.get(document);
+      removeListenerCallbacks = removeListenerCallbacks.concat(callbacks);
+    }
+
+    documentToRemoveEventListenersMap.set(document, removeListenerCallbacks);
   }
 }
 
@@ -1013,6 +1041,8 @@ const searchProviders = new SearchProviders();
 const searchAdImpression = new SearchAdImpression();
 
 const documentToEventCallbackMap = new WeakMap();
+const documentToRemoveEventListenersMap = new WeakMap();
+const documentToSubmitMap = new WeakMap();
 
 /**
  * SearchTelemetryChild monitors for pages that are partner searches, and
@@ -1190,6 +1220,16 @@ export class SearchSERPTelemetryChild extends JSWindowActorChild {
     }
   }
 
+  #removeEventListeners() {
+    let callbacks = documentToRemoveEventListenersMap.get(this.document);
+    if (callbacks) {
+      for (let callback of callbacks) {
+        callback();
+      }
+      documentToRemoveEventListenersMap.delete(this.document);
+    }
+  }
+
   /**
    * Handles events received from the actor child notifications.
    *
@@ -1234,6 +1274,32 @@ export class SearchSERPTelemetryChild extends JSWindowActorChild {
         break;
       }
     }
+  }
+
+  async receiveMessage(message) {
+    switch (message.name) {
+      case "SearchSERPTelemetry:WaitForSPAPageLoad":
+        lazy.setTimeout(() => {
+          this.#checkForPageImpressionComponents();
+          this._checkForAdLink("load");
+        }, Services.cpmm.sharedData.get(SEARCH_TELEMETRY_SHARED.SPA_LOAD_TIMEOUT));
+        break;
+      case "SearchSERPTelemetry:StopTrackingDocument":
+        this.#removeDocumentFromSubmitMap();
+        this.#removeEventListeners();
+        break;
+      case "SearchSERPTelemetry:DidSubmit":
+        return this.#didSubmit();
+    }
+    return null;
+  }
+
+  #didSubmit() {
+    return documentToSubmitMap.get(this.document);
+  }
+
+  #removeDocumentFromSubmitMap() {
+    documentToSubmitMap.delete(this.document);
   }
 
   #urlIsSERP(url) {

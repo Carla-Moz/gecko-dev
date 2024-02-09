@@ -595,15 +595,14 @@ IntrinsicSize nsSubDocumentFrame::GetIntrinsicSize() {
   if (containAxes.IsBoth()) {
     // Intrinsic size of 'contain:size' replaced elements is determined by
     // contain-intrinsic-size.
-    return containAxes.ContainIntrinsicSize(IntrinsicSize(0, 0), *this);
+    return FinishIntrinsicSize(containAxes, IntrinsicSize(0, 0));
   }
 
   if (nsCOMPtr<nsIObjectLoadingContent> iolc = do_QueryInterface(mContent)) {
-    auto olc = static_cast<nsObjectLoadingContent*>(iolc.get());
-
+    const auto* olc = static_cast<nsObjectLoadingContent*>(iolc.get());
     if (auto size = olc->GetSubdocumentIntrinsicSize()) {
       // Use the intrinsic size from the child SVG document, if available.
-      return containAxes.ContainIntrinsicSize(*size, *this);
+      return FinishIntrinsicSize(containAxes, *size);
     }
   }
 
@@ -616,8 +615,8 @@ IntrinsicSize nsSubDocumentFrame::GetIntrinsicSize() {
   }
 
   // We must be an HTML <iframe>. Return fallback size.
-  return containAxes.ContainIntrinsicSize(IntrinsicSize(kFallbackIntrinsicSize),
-                                          *this);
+  return FinishIntrinsicSize(containAxes,
+                             IntrinsicSize(kFallbackIntrinsicSize));
 }
 
 /* virtual */
@@ -684,11 +683,11 @@ void nsSubDocumentFrame::Reflow(nsPresContext* aPresContext,
       ("enter nsSubDocumentFrame::Reflow: maxSize=%d,%d",
        aReflowInput.AvailableWidth(), aReflowInput.AvailableHeight()));
 
-  NS_ASSERTION(aReflowInput.ComputedWidth() != NS_UNCONSTRAINEDSIZE,
-               "Shouldn't have unconstrained stuff here "
+  NS_ASSERTION(aReflowInput.ComputedISize() != NS_UNCONSTRAINEDSIZE,
+               "Shouldn't have unconstrained inline-size here "
                "thanks to the rules of reflow");
-  NS_ASSERTION(NS_UNCONSTRAINEDSIZE != aReflowInput.ComputedHeight(),
-               "Shouldn't have unconstrained stuff here "
+  NS_ASSERTION(aReflowInput.ComputedBSize() != NS_UNCONSTRAINEDSIZE,
+               "Shouldn't have unconstrained block-size here "
                "thanks to ComputeAutoSize");
 
   NS_ASSERTION(mContent->GetPrimaryFrame() == this, "Shouldn't happen");

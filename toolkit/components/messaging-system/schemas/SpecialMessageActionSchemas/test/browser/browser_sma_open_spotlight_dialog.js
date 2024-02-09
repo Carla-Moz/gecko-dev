@@ -4,11 +4,11 @@
 "use strict";
 
 const { OnboardingMessageProvider } = ChromeUtils.import(
-  "resource://activity-stream/lib/OnboardingMessageProvider.jsm"
+  "resource:///modules/asrouter/OnboardingMessageProvider.jsm"
 );
 
-const { Spotlight } = ChromeUtils.import(
-  "resource://activity-stream/lib/Spotlight.jsm"
+const { Spotlight } = ChromeUtils.importESModule(
+  "resource:///modules/asrouter/Spotlight.sys.mjs"
 );
 
 add_task(async function test_OPEN_SPOTLIGHT_DIALOG() {

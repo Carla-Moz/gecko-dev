@@ -664,7 +664,7 @@ bool GLContext::InitImpl() {
       "Gallium 0.4 on llvmpipe",
       "Intel HD Graphics 3000 OpenGL Engine",
       "Microsoft Basic Render Driver",
-      "Samsung Xclipse 920",
+      "Samsung Xclipse",
       "Unknown"};
 
   mRenderer = GLRenderer::Other;
@@ -763,7 +763,7 @@ bool GLContext::InitImpl() {
       MarkUnsupported(GLFeature::robust_buffer_access_behavior);
     }
 
-    if (Renderer() == GLRenderer::SamsungXclipse920) {
+    if (Renderer() == GLRenderer::SamsungXclipse) {
       MarkUnsupported(GLFeature::invalidate_framebuffer);
     }
   }
@@ -2399,6 +2399,12 @@ uint32_t GetBytesPerTexel(GLenum format, GLenum type) {
   gfxCriticalError() << "Unknown texture type " << type << " or format "
                      << format;
   return 0;
+}
+
+void GLContext::ResetTLSCurrentContext() {
+  if (sCurrentContext.init()) {
+    sCurrentContext.set(nullptr);
+  }
 }
 
 bool GLContext::MakeCurrent(bool aForce) const {

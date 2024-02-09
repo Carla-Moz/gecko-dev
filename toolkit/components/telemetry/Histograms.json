@@ -290,7 +290,7 @@
   },
   "CHECKERBOARD_DURATION": {
     "record_in_processes": ["main", "content", "gpu"],
-    "products": ["firefox", "fennec", "geckoview_streaming"],
+    "products": ["firefox"],
     "alert_emails": ["gfx-telemetry-alerts@mozilla.com", "botond@mozilla.com"],
     "bug_numbers": [1238040, 1539309, 1584109],
     "releaseChannelCollection": "opt-out",
@@ -302,7 +302,7 @@
   },
   "CHECKERBOARD_PEAK": {
     "record_in_processes": ["main", "content", "gpu"],
-    "products": ["firefox", "fennec", "geckoview_streaming"],
+    "products": ["firefox"],
     "alert_emails": ["gfx-telemetry-alerts@mozilla.com", "botond@mozilla.com"],
     "bug_numbers": [1238040, 1539309, 1584109],
     "releaseChannelCollection": "opt-out",
@@ -314,7 +314,7 @@
   },
   "CHECKERBOARD_POTENTIAL_DURATION": {
     "record_in_processes": ["main", "content", "gpu"],
-    "products": ["firefox", "fennec", "geckoview_streaming"],
+    "products": ["firefox"],
     "alert_emails": ["gfx-telemetry-alerts@mozilla.com", "botond@mozilla.com"],
     "bug_numbers": [1238040, 1539309, 1584109],
     "releaseChannelCollection": "opt-out",
@@ -326,7 +326,7 @@
   },
   "CHECKERBOARD_SEVERITY": {
     "record_in_processes": ["main", "content", "gpu"],
-    "products": ["firefox", "fennec", "geckoview_streaming"],
+    "products": ["firefox"],
     "alert_emails": ["gfx-telemetry-alerts@mozilla.com", "botond@mozilla.com"],
     "bug_numbers": [1238040, 1539309, 1584109],
     "releaseChannelCollection": "opt-out",
@@ -354,7 +354,7 @@
   },
   "COMPOSITE_TIME": {
     "record_in_processes": ["main", "content", "gpu"],
-    "products": ["firefox", "fennec", "geckoview_streaming"],
+    "products": ["firefox"],
     "alert_emails": ["gfx-telemetry-alerts@mozilla.com", "jnicol@mozilla.com"],
     "expires_in_version": "never",
     "description": "Composite times in milliseconds",
@@ -677,6 +677,25 @@
     "high": 600000,
     "n_buckets": 100,
     "description": "Counts how long to generate canvas random noises."
+  },
+  "FIREFOX_VIEW_CUMULATIVE_SEARCHES": {
+    "record_in_processes": ["main"],
+    "products": ["firefox"],
+    "expires_in_version": "never",
+    "alert_emails": ["firefoxview@mozilla.com"],
+    "releaseChannelCollection": "opt-out",
+    "bug_numbers": [1869765],
+    "kind": "enumerated",
+    "n_values": 100,
+    "description": "Cumulative no. of searches performed before selecting a resulting tab.",
+    "keyed": true,
+    "keys": [
+      "recentbrowsing",
+      "opentabs",
+      "recentlyclosed",
+      "history",
+      "syncedtabs"
+    ]
   },
   "FORCED_DEVICE_RESET_REASON": {
     "record_in_processes": ["main", "content", "gpu"],
@@ -2400,7 +2419,7 @@
   },
   "SCROLL_PRESENT_LATENCY": {
     "record_in_processes": ["main", "gpu"],
-    "products": ["firefox", "geckoview_streaming"],
+    "products": ["firefox"],
     "alert_emails": [
       "perf-telemetry-alerts@mozilla.com",
       "sefeng@mozilla.com",
@@ -2562,7 +2581,7 @@
   },
   "HTTP_PAGE_DNS_ISSUE_TIME": {
     "record_in_processes": ["main", "content"],
-    "products": ["firefox", "fennec", "geckoview_streaming"],
+    "products": ["firefox", "fennec"],
     "expires_in_version": "never",
     "releaseChannelCollection": "opt-out",
     "alert_emails": ["necko@mozilla.com", "vogosu@mozilla.com"],
@@ -2574,7 +2593,7 @@
   },
   "HTTP_PAGE_DNS_LOOKUP_TIME": {
     "record_in_processes": ["main", "content"],
-    "products": ["firefox", "fennec", "geckoview_streaming"],
+    "products": ["firefox", "fennec"],
     "expires_in_version": "never",
     "releaseChannelCollection": "opt-out",
     "alert_emails": ["necko@mozilla.com", "vogosu@mozilla.com"],
@@ -2598,7 +2617,7 @@
   },
   "HTTP_PAGE_TCP_CONNECTION_2": {
     "record_in_processes": ["main", "content"],
-    "products": ["firefox", "fennec", "geckoview_streaming"],
+    "products": ["firefox", "fennec"],
     "expires_in_version": "never",
     "releaseChannelCollection": "opt-out",
     "alert_emails": ["necko@mozilla.com", "ddamjanovic@mozilla.com"],
@@ -9475,6 +9494,19 @@
     "bug_numbers": [1334615],
     "description": "The input method the user used to select a result in the searchbar. 'enter' => The user hit the Enter key without choosing a result in the popup. 'enterSelection' => The user chose a result and then hit the Enter key. 'click' => The user clicked a result with the mouse."
   },
+  "FX_URLBAR_PROVIDER_CLIPBOARD_READ_TIME_MS": {
+    "record_in_processes": ["main"],
+    "products": ["firefox"],
+    "alert_emails": ["fx-search-telemetry@mozilla.com"],
+    "expires_in_version": "128",
+    "kind": "exponential",
+    "low": 16,
+    "high": 5000,
+    "n_buckets": 8,
+    "bug_numbers": [1866710],
+    "releaseChannelCollection": "opt-out",
+    "description": "Time taken to read data from the clipboard (ms)"
+  },
   "INNERWINDOWS_WITH_MUTATION_LISTENERS": {
     "record_in_processes": ["main", "content"],
     "products": ["firefox", "fennec"],
@@ -13041,7 +13073,7 @@
   },
   "NETWORK_CACHE_V2_HIT_TIME_MS": {
     "record_in_processes": ["main", "content"],
-    "products": ["firefox", "fennec", "geckoview_streaming"],
+    "products": ["firefox", "fennec"],
     "alert_emails": [
       "hbambas@mozilla.com",
       "mnovotny@mozilla.com",
@@ -15124,7 +15156,7 @@
   },
   "WEBFONT_DOWNLOAD_TIME_AFTER_START": {
     "record_in_processes": ["main", "content"],
-    "products": ["firefox", "fennec", "geckoview_streaming"],
+    "products": ["firefox", "fennec"],
     "alert_emails": [
       "perf-telemetry-alerts@mozilla.com",
       "necko@mozilla.com",
@@ -15695,7 +15727,7 @@
   },
   "CONTENT_PAINT_TIME": {
     "record_in_processes": ["main", "content"],
-    "products": ["firefox", "fennec", "geckoview_streaming"],
+    "products": ["firefox"],
     "alert_emails": [
       "gfx-telemetry-alerts@mozilla.com",
       "mwoodrow@mozilla.com",
@@ -15711,7 +15743,7 @@
   },
   "CONTENT_FULL_PAINT_TIME": {
     "record_in_processes": ["main", "content", "gpu"],
-    "products": ["firefox", "fennec", "geckoview_streaming"],
+    "products": ["firefox"],
     "alert_emails": [
       "gfx-telemetry-alerts@mozilla.com",
       "jmuizelaar@mozilla.com",
@@ -15727,7 +15759,7 @@
   },
   "CONTENT_FRAME_TIME": {
     "record_in_processes": ["main", "gpu"],
-    "products": ["firefox", "fennec", "geckoview_streaming"],
+    "products": ["firefox"],
     "alert_emails": ["gfx-telemetry-alerts@mozilla.com", "jnicol@mozilla.com"],
     "bug_numbers": [1470528, 1509536, 1584109],
     "expires_in_version": "never",
@@ -15739,7 +15771,7 @@
   },
   "CONTENT_FRAME_TIME_VSYNC": {
     "record_in_processes": ["main", "gpu"],
-    "products": ["firefox", "fennec", "geckoview_streaming"],
+    "products": ["firefox", "fennec"],
     "alert_emails": [
       "gfx-telemetry-alerts@mozilla.com",
       "mwoodrow@mozilla.com"
@@ -15755,7 +15787,7 @@
   },
   "CONTENT_FRAME_TIME_WITH_SVG": {
     "record_in_processes": ["main", "gpu"],
-    "products": ["firefox", "fennec", "geckoview_streaming"],
+    "products": ["firefox"],
     "alert_emails": [
       "gfx-telemetry-alerts@mozilla.com",
       "mwoodrow@mozilla.com"
@@ -15770,7 +15802,7 @@
   },
   "CONTENT_FRAME_TIME_WITHOUT_RESOURCE_UPLOAD": {
     "record_in_processes": ["main", "gpu"],
-    "products": ["firefox", "fennec", "geckoview_streaming"],
+    "products": ["firefox"],
     "alert_emails": [
       "gfx-telemetry-alerts@mozilla.com",
       "mwoodrow@mozilla.com"
@@ -15784,7 +15816,7 @@
   },
   "CONTENT_FRAME_TIME_WITHOUT_UPLOAD": {
     "record_in_processes": ["main", "gpu"],
-    "products": ["firefox", "fennec", "geckoview_streaming"],
+    "products": ["firefox"],
     "alert_emails": [
       "gfx-telemetry-alerts@mozilla.com",
       "mwoodrow@mozilla.com"
@@ -15798,7 +15830,7 @@
   },
   "CONTENT_FRAME_TIME_REASON": {
     "record_in_processes": ["main", "gpu"],
-    "products": ["firefox", "fennec", "geckoview_streaming"],
+    "products": ["firefox"],
     "alert_emails": [
       "gfx-telemetry-alerts@mozilla.com",
       "mwoodrow@mozilla.com"

@@ -84,6 +84,17 @@ appmenu-remote-tabs-showmore =
   .label = Show More Tabs
   .tooltiptext = Show more tabs from this device
 
+# This is shown when there are inactive tabs which are not being shown.
+# Variables
+# $count (Number) - The number of inactive tabs which are not being shown (at least 1)
+appmenu-remote-tabs-showinactive =
+  .label =
+    { $count ->
+        [one] Show one inactive tab
+       *[other] Show { $count } inactive tabs
+    }
+  .tooltiptext = Show the inactive tabs on this device
+
 # This is shown beneath the name of a device when that device has no open tabs
 appmenu-remote-tabs-notabs = No open tabs
 
@@ -193,7 +204,7 @@ profiler-popup-capture-shortcut =
 ## They are shown in the popup's select box.
 
 # Presets and their l10n IDs are defined in the file
-# devtools/client/performance-new/shared/background.jsm.js
+# devtools/client/performance-new/shared/background.sys.mjs
 # Please take care that the same values are also defined in devtools' perftools.ftl.
 
 profiler-popup-presets-web-developer-description = Recommended preset for most web app debugging, with low overhead.

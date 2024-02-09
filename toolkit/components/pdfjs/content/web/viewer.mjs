@@ -51,6 +51,443 @@ __webpack_require__.d(__webpack_exports__, {
   PDFViewerApplicationOptions: () => (/* reexport */ AppOptions)
 });
 
+;// CONCATENATED MODULE: ./web/pdfjs.js
+;
+const {
+  AbortException,
+  AnnotationEditorLayer,
+  AnnotationEditorParamsType,
+  AnnotationEditorType,
+  AnnotationEditorUIManager,
+  AnnotationLayer,
+  AnnotationMode,
+  build,
+  CMapCompressionType,
+  ColorPicker,
+  createValidAbsoluteUrl,
+  DOMSVGFactory,
+  DrawLayer,
+  FeatureTest,
+  fetchData,
+  getDocument,
+  getFilenameFromUrl,
+  getPdfFilenameFromUrl,
+  getXfaPageViewport,
+  GlobalWorkerOptions,
+  ImageKind,
+  InvalidPDFException,
+  isDataScheme,
+  isPdfFile,
+  MissingPDFException,
+  noContextMenu,
+  normalizeUnicode,
+  OPS,
+  Outliner,
+  PasswordResponses,
+  PDFDataRangeTransport,
+  PDFDateString,
+  PDFWorker,
+  PermissionFlag,
+  PixelsPerInch,
+  PromiseCapability,
+  RenderingCancelledException,
+  renderTextLayer,
+  setLayerDimensions,
+  shadow,
+  UnexpectedResponseException,
+  updateTextLayer,
+  Util,
+  VerbosityLevel,
+  version,
+  XfaLayer
+} = globalThis.pdfjsLib;
+
+;// CONCATENATED MODULE: ./web/external_services.js
+class BaseExternalServices {
+  constructor() {
+    if (this.constructor === BaseExternalServices) {
+      throw new Error("Cannot initialize BaseExternalServices.");
+    }
+  }
+  updateFindControlState(data) {}
+  updateFindMatchesCount(data) {}
+  initPassiveLoading(callbacks) {}
+  reportTelemetry(data) {}
+  async createL10n() {
+    throw new Error("Not implemented: createL10n");
+  }
+  createScripting() {
+    throw new Error("Not implemented: createScripting");
+  }
+  updateEditorStates(data) {
+    throw new Error("Not implemented: updateEditorStates");
+  }
+  async getNimbusExperimentData() {}
+}
+
+;// CONCATENATED MODULE: ./web/app_options.js
+const compatibilityParams = Object.create(null);
+;
+const OptionKind = {
+  BROWSER: 0x01,
+  VIEWER: 0x02,
+  API: 0x04,
+  WORKER: 0x08,
+  PREFERENCE: 0x80
+};
+const defaultOptions = {
+  canvasMaxAreaInBytes: {
+    value: -1,
+    kind: OptionKind.BROWSER + OptionKind.API
+  },
+  isInAutomation: {
+    value: false,
+    kind: OptionKind.BROWSER
+  },
+  supportsCaretBrowsingMode: {
+    value: false,
+    kind: OptionKind.BROWSER
+  },
+  supportsDocumentFonts: {
+    value: true,
+    kind: OptionKind.BROWSER
+  },
+  supportsIntegratedFind: {
+    value: false,
+    kind: OptionKind.BROWSER
+  },
+  supportsMouseWheelZoomCtrlKey: {
+    value: true,
+    kind: OptionKind.BROWSER
+  },
+  supportsMouseWheelZoomMetaKey: {
+    value: true,
+    kind: OptionKind.BROWSER
+  },
+  supportsPinchToZoom: {
+    value: true,
+    kind: OptionKind.BROWSER
+  },
+  annotationEditorMode: {
+    value: 0,
+    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
+  },
+  annotationMode: {
+    value: 2,
+    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
+  },
+  cursorToolOnLoad: {
+    value: 0,
+    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
+  },
+  debuggerSrc: {
+    value: "./debugger.mjs",
+    kind: OptionKind.VIEWER
+  },
+  defaultZoomDelay: {
+    value: 400,
+    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
+  },
+  defaultZoomValue: {
+    value: "",
+    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
+  },
+  disableHistory: {
+    value: false,
+    kind: OptionKind.VIEWER
+  },
+  disablePageLabels: {
+    value: false,
+    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
+  },
+  enableHighlightEditor: {
+    value: false,
+    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
+  },
+  enablePermissions: {
+    value: false,
+    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
+  },
+  enablePrintAutoRotate: {
+    value: true,
+    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
+  },
+  enableScripting: {
+    value: true,
+    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
+  },
+  externalLinkRel: {
+    value: "noopener noreferrer nofollow",
+    kind: OptionKind.VIEWER
+  },
+  externalLinkTarget: {
+    value: 0,
+    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
+  },
+  highlightEditorColors: {
+    value: "yellow=#FFFF98,green=#53FFBC,blue=#80EBFF,pink=#FFCBE6,red=#FF4F5F",
+    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
+  },
+  historyUpdateUrl: {
+    value: false,
+    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
+  },
+  ignoreDestinationZoom: {
+    value: false,
+    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
+  },
+  imageResourcesPath: {
+    value: "resource://pdf.js/web/images/",
+    kind: OptionKind.VIEWER
+  },
+  maxCanvasPixels: {
+    value: 16777216,
+    kind: OptionKind.VIEWER
+  },
+  forcePageColors: {
+    value: false,
+    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
+  },
+  pageColorsBackground: {
+    value: "Canvas",
+    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
+  },
+  pageColorsForeground: {
+    value: "CanvasText",
+    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
+  },
+  pdfBugEnabled: {
+    value: false,
+    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
+  },
+  printResolution: {
+    value: 150,
+    kind: OptionKind.VIEWER
+  },
+  sidebarViewOnLoad: {
+    value: -1,
+    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
+  },
+  scrollModeOnLoad: {
+    value: -1,
+    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
+  },
+  spreadModeOnLoad: {
+    value: -1,
+    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
+  },
+  textLayerMode: {
+    value: 1,
+    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
+  },
+  viewOnLoad: {
+    value: 0,
+    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
+  },
+  cMapPacked: {
+    value: true,
+    kind: OptionKind.API
+  },
+  cMapUrl: {
+    value: "resource://pdf.js/web/cmaps/",
+    kind: OptionKind.API
+  },
+  disableAutoFetch: {
+    value: false,
+    kind: OptionKind.API + OptionKind.PREFERENCE
+  },
+  disableFontFace: {
+    value: false,
+    kind: OptionKind.API + OptionKind.PREFERENCE
+  },
+  disableRange: {
+    value: false,
+    kind: OptionKind.API + OptionKind.PREFERENCE
+  },
+  disableStream: {
+    value: false,
+    kind: OptionKind.API + OptionKind.PREFERENCE
+  },
+  docBaseUrl: {
+    value: "",
+    kind: OptionKind.API
+  },
+  enableXfa: {
+    value: true,
+    kind: OptionKind.API + OptionKind.PREFERENCE
+  },
+  fontExtraProperties: {
+    value: false,
+    kind: OptionKind.API
+  },
+  isEvalSupported: {
+    value: true,
+    kind: OptionKind.API
+  },
+  isOffscreenCanvasSupported: {
+    value: true,
+    kind: OptionKind.API
+  },
+  maxImageSize: {
+    value: -1,
+    kind: OptionKind.API
+  },
+  pdfBug: {
+    value: false,
+    kind: OptionKind.API
+  },
+  standardFontDataUrl: {
+    value: "resource://pdf.js/web/standard_fonts/",
+    kind: OptionKind.API
+  },
+  verbosity: {
+    value: 1,
+    kind: OptionKind.API
+  },
+  workerPort: {
+    value: null,
+    kind: OptionKind.WORKER
+  },
+  workerSrc: {
+    value: "resource://pdf.js/build/pdf.worker.mjs",
+    kind: OptionKind.WORKER
+  }
+};
+;
+;
+const userOptions = Object.create(null);
+class AppOptions {
+  constructor() {
+    throw new Error("Cannot initialize AppOptions.");
+  }
+  static get(name) {
+    const userOption = userOptions[name];
+    if (userOption !== undefined) {
+      return userOption;
+    }
+    const defaultOption = defaultOptions[name];
+    if (defaultOption !== undefined) {
+      return compatibilityParams[name] ?? defaultOption.value;
+    }
+    return undefined;
+  }
+  static getAll(kind = null) {
+    const options = Object.create(null);
+    for (const name in defaultOptions) {
+      const defaultOption = defaultOptions[name];
+      if (kind) {
+        if (!(kind & defaultOption.kind)) {
+          continue;
+        }
+      }
+      const userOption = userOptions[name];
+      options[name] = userOption !== undefined ? userOption : compatibilityParams[name] ?? defaultOption.value;
+    }
+    return options;
+  }
+  static set(name, value) {
+    userOptions[name] = value;
+  }
+  static setAll(options, init = false) {
+    for (const name in options) {
+      userOptions[name] = options[name];
+    }
+  }
+  static remove(name) {
+    delete userOptions[name];
+  }
+}
+
+;// CONCATENATED MODULE: ./web/preferences.js
+
+class BasePreferences {
+  #defaults = Object.freeze({
+    annotationEditorMode: 0,
+    annotationMode: 2,
+    cursorToolOnLoad: 0,
+    defaultZoomDelay: 400,
+    defaultZoomValue: "",
+    disablePageLabels: false,
+    enableHighlightEditor: false,
+    enablePermissions: false,
+    enablePrintAutoRotate: true,
+    enableScripting: true,
+    externalLinkTarget: 0,
+    highlightEditorColors: "yellow=#FFFF98,green=#53FFBC,blue=#80EBFF,pink=#FFCBE6,red=#FF4F5F",
+    historyUpdateUrl: false,
+    ignoreDestinationZoom: false,
+    forcePageColors: false,
+    pageColorsBackground: "Canvas",
+    pageColorsForeground: "CanvasText",
+    pdfBugEnabled: false,
+    sidebarViewOnLoad: -1,
+    scrollModeOnLoad: -1,
+    spreadModeOnLoad: -1,
+    textLayerMode: 1,
+    viewOnLoad: 0,
+    disableAutoFetch: false,
+    disableFontFace: false,
+    disableRange: false,
+    disableStream: false,
+    enableXfa: true
+  });
+  #prefs = Object.create(null);
+  #initializedPromise = null;
+  constructor() {
+    if (this.constructor === BasePreferences) {
+      throw new Error("Cannot initialize BasePreferences.");
+    }
+    this.#initializedPromise = this._readFromStorage(this.#defaults).then(({
+      browserPrefs,
+      prefs
+    }) => {
+      const BROWSER_PREFS = {
+        canvasMaxAreaInBytes: -1,
+        isInAutomation: false,
+        supportsCaretBrowsingMode: false,
+        supportsDocumentFonts: true,
+        supportsIntegratedFind: false,
+        supportsMouseWheelZoomCtrlKey: true,
+        supportsMouseWheelZoomMetaKey: true,
+        supportsPinchToZoom: true
+      };
+      const options = Object.create(null);
+      for (const [name, defaultVal] of Object.entries(BROWSER_PREFS)) {
+        const prefVal = browserPrefs?.[name];
+        options[name] = typeof prefVal === typeof defaultVal ? prefVal : defaultVal;
+      }
+      for (const [name, defaultVal] of Object.entries(this.#defaults)) {
+        const prefVal = prefs?.[name];
+        options[name] = this.#prefs[name] = typeof prefVal === typeof defaultVal ? prefVal : defaultVal;
+      }
+      AppOptions.setAll(options, true);
+    });
+  }
+  async _writeToStorage(prefObj) {
+    throw new Error("Not implemented: _writeToStorage");
+  }
+  async _readFromStorage(prefObj) {
+    throw new Error("Not implemented: _readFromStorage");
+  }
+  async reset() {
+    throw new Error("Please use `about:config` to change preferences.");
+  }
+  async set(name, value) {
+    throw new Error("Please use `about:config` to change preferences.");
+  }
+  async get(name) {
+    await this.#initializedPromise;
+    const defaultValue = this.#defaults[name];
+    if (defaultValue === undefined) {
+      throw new Error(`Get preference: "${name}" is undefined.`);
+    }
+    return this.#prefs[name] ?? defaultValue;
+  }
+  get initializedPromise() {
+    return this.#initializedPromise;
+  }
+}
+
 ;// CONCATENATED MODULE: ./web/ui_utils.js
 const DEFAULT_SCALE_VALUE = "auto";
 const DEFAULT_SCALE = 1.0;
@@ -528,321 +965,80 @@ function toggleExpandedBtn(button, toggle, view = null) {
   view?.classList.toggle("hidden", !toggle);
 }
 
-;// CONCATENATED MODULE: ./web/pdfjs.js
-;
-const {
-  AbortException,
-  AnnotationEditorLayer,
-  AnnotationEditorParamsType,
-  AnnotationEditorType,
-  AnnotationEditorUIManager,
-  AnnotationLayer,
-  AnnotationMode,
-  build,
-  CMapCompressionType,
-  ColorPicker,
-  createValidAbsoluteUrl,
-  DOMSVGFactory,
-  DrawLayer,
-  FeatureTest,
-  fetchData,
-  getDocument,
-  getFilenameFromUrl,
-  getPdfFilenameFromUrl,
-  getXfaPageViewport,
-  GlobalWorkerOptions,
-  ImageKind,
-  InvalidPDFException,
-  isDataScheme,
-  isPdfFile,
-  MissingPDFException,
-  noContextMenu,
-  normalizeUnicode,
-  OPS,
-  Outliner,
-  PasswordResponses,
-  PDFDataRangeTransport,
-  PDFDateString,
-  PDFWorker,
-  PermissionFlag,
-  PixelsPerInch,
-  PromiseCapability,
-  RenderingCancelledException,
-  renderTextLayer,
-  setLayerDimensions,
-  shadow,
-  UnexpectedResponseException,
-  updateTextLayer,
-  Util,
-  VerbosityLevel,
-  version,
-  XfaLayer
-} = globalThis.pdfjsLib;
-
-;// CONCATENATED MODULE: ./web/app_options.js
-const compatibilityParams = Object.create(null);
-;
-const OptionKind = {
-  BROWSER: 0x01,
-  VIEWER: 0x02,
-  API: 0x04,
-  WORKER: 0x08,
-  PREFERENCE: 0x80
-};
-const defaultOptions = {
-  canvasMaxAreaInBytes: {
-    value: -1,
-    kind: OptionKind.BROWSER + OptionKind.API
-  },
-  isInAutomation: {
-    value: false,
-    kind: OptionKind.BROWSER
-  },
-  supportsDocumentFonts: {
-    value: true,
-    kind: OptionKind.BROWSER
-  },
-  supportsIntegratedFind: {
-    value: false,
-    kind: OptionKind.BROWSER
-  },
-  supportsMouseWheelZoomCtrlKey: {
-    value: true,
-    kind: OptionKind.BROWSER
-  },
-  supportsMouseWheelZoomMetaKey: {
-    value: true,
-    kind: OptionKind.BROWSER
-  },
-  supportsPinchToZoom: {
-    value: true,
-    kind: OptionKind.BROWSER
-  },
-  annotationEditorMode: {
-    value: 0,
-    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
-  },
-  annotationMode: {
-    value: 2,
-    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
-  },
-  cursorToolOnLoad: {
-    value: 0,
-    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
-  },
-  defaultZoomDelay: {
-    value: 400,
-    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
-  },
-  defaultZoomValue: {
-    value: "",
-    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
-  },
-  disableHistory: {
-    value: false,
-    kind: OptionKind.VIEWER
-  },
-  disablePageLabels: {
-    value: false,
-    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
-  },
-  enableHighlightEditor: {
-    value: false,
-    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
-  },
-  enablePermissions: {
-    value: false,
-    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
-  },
-  enablePrintAutoRotate: {
-    value: true,
-    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
-  },
-  enableScripting: {
-    value: true,
-    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
-  },
-  externalLinkRel: {
-    value: "noopener noreferrer nofollow",
-    kind: OptionKind.VIEWER
-  },
-  externalLinkTarget: {
-    value: 0,
-    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
-  },
-  highlightEditorColors: {
-    value: "yellow=#FFFF98,green=#53FFBC,blue=#80EBFF,pink=#FFCBE6,red=#FF4F5F",
-    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
-  },
-  historyUpdateUrl: {
-    value: false,
-    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
-  },
-  ignoreDestinationZoom: {
-    value: false,
-    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
-  },
-  imageResourcesPath: {
-    value: "resource://pdf.js/web/images/",
-    kind: OptionKind.VIEWER
-  },
-  maxCanvasPixels: {
-    value: 16777216,
-    kind: OptionKind.VIEWER
-  },
-  forcePageColors: {
-    value: false,
-    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
-  },
-  pageColorsBackground: {
-    value: "Canvas",
-    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
-  },
-  pageColorsForeground: {
-    value: "CanvasText",
-    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
-  },
-  pdfBugEnabled: {
-    value: false,
-    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
-  },
-  printResolution: {
-    value: 150,
-    kind: OptionKind.VIEWER
-  },
-  sidebarViewOnLoad: {
-    value: -1,
-    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
-  },
-  scrollModeOnLoad: {
-    value: -1,
-    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
-  },
-  spreadModeOnLoad: {
-    value: -1,
-    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
-  },
-  textLayerMode: {
-    value: 1,
-    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
-  },
-  viewOnLoad: {
-    value: 0,
-    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
-  },
-  cMapPacked: {
-    value: true,
-    kind: OptionKind.API
-  },
-  cMapUrl: {
-    value: "resource://pdf.js/web/cmaps/",
-    kind: OptionKind.API
-  },
-  disableAutoFetch: {
-    value: false,
-    kind: OptionKind.API + OptionKind.PREFERENCE
-  },
-  disableFontFace: {
-    value: false,
-    kind: OptionKind.API + OptionKind.PREFERENCE
-  },
-  disableRange: {
-    value: false,
-    kind: OptionKind.API + OptionKind.PREFERENCE
-  },
-  disableStream: {
-    value: false,
-    kind: OptionKind.API + OptionKind.PREFERENCE
-  },
-  docBaseUrl: {
-    value: "",
-    kind: OptionKind.API
-  },
-  enableXfa: {
-    value: true,
-    kind: OptionKind.API + OptionKind.PREFERENCE
-  },
-  fontExtraProperties: {
-    value: false,
-    kind: OptionKind.API
-  },
-  isEvalSupported: {
-    value: true,
-    kind: OptionKind.API
-  },
-  isOffscreenCanvasSupported: {
-    value: true,
-    kind: OptionKind.API
-  },
-  maxImageSize: {
-    value: -1,
-    kind: OptionKind.API
-  },
-  pdfBug: {
-    value: false,
-    kind: OptionKind.API
-  },
-  standardFontDataUrl: {
-    value: "resource://pdf.js/web/standard_fonts/",
-    kind: OptionKind.API
-  },
-  verbosity: {
-    value: 1,
-    kind: OptionKind.API
-  },
-  workerPort: {
-    value: null,
-    kind: OptionKind.WORKER
-  },
-  workerSrc: {
-    value: "resource://pdf.js/build/pdf.worker.mjs",
-    kind: OptionKind.WORKER
+;// CONCATENATED MODULE: ./web/l10n.js
+class L10n {
+  #dir;
+  #lang;
+  #l10n;
+  constructor({
+    lang,
+    isRTL
+  }, l10n = null) {
+    this.#lang = L10n.#fixupLangCode(lang);
+    this.#l10n = l10n;
+    this.#dir = isRTL ?? L10n.#isRTL(this.#lang) ? "rtl" : "ltr";
   }
-};
-;
-;
-const userOptions = Object.create(null);
-class AppOptions {
-  constructor() {
-    throw new Error("Cannot initialize AppOptions.");
+  _setL10n(l10n) {
+    this.#l10n = l10n;
   }
-  static get(name) {
-    const userOption = userOptions[name];
-    if (userOption !== undefined) {
-      return userOption;
+  getLanguage() {
+    return this.#lang;
+  }
+  getDirection() {
+    return this.#dir;
+  }
+  async get(ids, args = null, fallback) {
+    if (Array.isArray(ids)) {
+      ids = ids.map(id => ({
+        id
+      }));
+      const messages = await this.#l10n.formatMessages(ids);
+      return messages.map(message => message.value);
     }
-    const defaultOption = defaultOptions[name];
-    if (defaultOption !== undefined) {
-      return compatibilityParams[name] ?? defaultOption.value;
-    }
-    return undefined;
+    const messages = await this.#l10n.formatMessages([{
+      id: ids,
+      args
+    }]);
+    return messages?.[0].value || fallback;
   }
-  static getAll(kind = null) {
-    const options = Object.create(null);
-    for (const name in defaultOptions) {
-      const defaultOption = defaultOptions[name];
-      if (kind) {
-        if (!(kind & defaultOption.kind)) {
-          continue;
-        }
-      }
-      const userOption = userOptions[name];
-      options[name] = userOption !== undefined ? userOption : compatibilityParams[name] ?? defaultOption.value;
-    }
-    return options;
+  async translate(element) {
+    try {
+      this.#l10n.connectRoot(element);
+      await this.#l10n.translateRoots();
+    } catch {}
   }
-  static set(name, value) {
-    userOptions[name] = value;
+  pause() {
+    this.#l10n.pauseObserving();
   }
-  static setAll(options, init = false) {
-    for (const name in options) {
-      userOptions[name] = options[name];
-    }
+  resume() {
+    this.#l10n.resumeObserving();
   }
-  static remove(name) {
-    delete userOptions[name];
+  static #fixupLangCode(langCode) {
+    langCode = langCode?.toLowerCase() || "en-us";
+    const PARTIAL_LANG_CODES = {
+      en: "en-us",
+      es: "es-es",
+      fy: "fy-nl",
+      ga: "ga-ie",
+      gu: "gu-in",
+      hi: "hi-in",
+      hy: "hy-am",
+      nb: "nb-no",
+      ne: "ne-np",
+      nn: "nn-no",
+      pa: "pa-in",
+      pt: "pt-pt",
+      sv: "sv-se",
+      zh: "zh-cn"
+    };
+    return PARTIAL_LANG_CODES[langCode] || langCode;
+  }
+  static #isRTL(lang) {
+    const shortCode = lang.split("-", 1)[0];
+    return ["ar", "he", "fa", "ps", "ur"].includes(shortCode);
   }
 }
+const GenericL10n = null;
 
 ;// CONCATENATED MODULE: ./web/event_utils.js
 const WaitOnType = {
@@ -1724,6 +1920,177 @@ class AnnotationEditorParams {
         }
       }
     });
+  }
+}
+
+;// CONCATENATED MODULE: ./web/caret_browsing.js
+const PRECISION = 1e-1;
+class CaretBrowsingMode {
+  #mainContainer;
+  #toolBarHeight;
+  #viewerContainer;
+  constructor(mainContainer, viewerContainer, toolbarContainer) {
+    this.#mainContainer = mainContainer;
+    this.#viewerContainer = viewerContainer;
+    this.#toolBarHeight = toolbarContainer?.getBoundingClientRect().height ?? 0;
+  }
+  #isOnSameLine(rect1, rect2) {
+    const top1 = rect1.y;
+    const bot1 = rect1.bottom;
+    const mid1 = rect1.y + rect1.height / 2;
+    const top2 = rect2.y;
+    const bot2 = rect2.bottom;
+    const mid2 = rect2.y + rect2.height / 2;
+    return top1 <= mid2 && mid2 <= bot1 || top2 <= mid1 && mid1 <= bot2;
+  }
+  #isUnderOver(rect, x, y, isUp) {
+    const midY = rect.y + rect.height / 2;
+    return (isUp ? y >= midY : y <= midY) && rect.x - PRECISION <= x && x <= rect.right + PRECISION;
+  }
+  #isVisible(rect) {
+    return rect.top >= this.#toolBarHeight && rect.left >= 0 && rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) && rect.right <= (window.innerWidth || document.documentElement.clientWidth);
+  }
+  #getCaretPosition(selection, isUp) {
+    const {
+      focusNode,
+      focusOffset
+    } = selection;
+    const range = document.createRange();
+    range.setStart(focusNode, focusOffset);
+    range.setEnd(focusNode, focusOffset);
+    const rect = range.getBoundingClientRect();
+    return [rect.x, isUp ? rect.top : rect.bottom];
+  }
+  static #caretPositionFromPoint(x, y) {
+    return document.caretPositionFromPoint(x, y);
+  }
+  #setCaretPositionHelper(selection, caretX, select, element, rect) {
+    rect ||= element.getBoundingClientRect();
+    if (caretX <= rect.x + PRECISION) {
+      if (select) {
+        selection.extend(element.firstChild, 0);
+      } else {
+        selection.setPosition(element.firstChild, 0);
+      }
+      return;
+    }
+    if (rect.right - PRECISION <= caretX) {
+      const {
+        lastChild
+      } = element;
+      if (select) {
+        selection.extend(lastChild, lastChild.length);
+      } else {
+        selection.setPosition(lastChild, lastChild.length);
+      }
+      return;
+    }
+    const midY = rect.y + rect.height / 2;
+    const caretPosition = CaretBrowsingMode.#caretPositionFromPoint(caretX, midY);
+    if (caretPosition.offsetNode?.parentElement !== element) {
+      if (select) {
+        selection.extend(element.firstChild, 0);
+      } else {
+        selection.setPosition(element.firstChild, 0);
+      }
+      return;
+    }
+    if (select) {
+      selection.extend(caretPosition.offsetNode, caretPosition.offset);
+    } else {
+      selection.setPosition(caretPosition.offsetNode, caretPosition.offset);
+    }
+  }
+  #setCaretPosition(select, selection, newLineElement, newLineElementRect, caretX) {
+    if (this.#isVisible(newLineElementRect)) {
+      this.#setCaretPositionHelper(selection, caretX, select, newLineElement, newLineElementRect);
+      return;
+    }
+    this.#mainContainer.addEventListener("scrollend", this.#setCaretPositionHelper.bind(this, selection, caretX, select, newLineElement, null), {
+      once: true
+    });
+    newLineElement.scrollIntoView();
+  }
+  #getNodeOnNextPage(textLayer, isUp) {
+    while (true) {
+      const page = textLayer.closest(".page");
+      const pageNumber = parseInt(page.getAttribute("data-page-number"));
+      const nextPage = isUp ? pageNumber - 1 : pageNumber + 1;
+      textLayer = this.#viewerContainer.querySelector(`.page[data-page-number="${nextPage}"] .textLayer`);
+      if (!textLayer) {
+        return null;
+      }
+      const walker = document.createTreeWalker(textLayer, NodeFilter.SHOW_TEXT);
+      const node = isUp ? walker.lastChild() : walker.firstChild();
+      if (node) {
+        return node;
+      }
+    }
+  }
+  moveCaret(isUp, select) {
+    const selection = document.getSelection();
+    if (selection.rangeCount === 0) {
+      return;
+    }
+    const {
+      focusNode
+    } = selection;
+    const focusElement = focusNode.nodeType !== Node.ELEMENT_NODE ? focusNode.parentElement : focusNode;
+    const root = focusElement.closest(".textLayer");
+    if (!root) {
+      return;
+    }
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    walker.currentNode = focusNode;
+    const focusRect = focusElement.getBoundingClientRect();
+    let newLineElement = null;
+    const nodeIterator = (isUp ? walker.previousSibling : walker.nextSibling).bind(walker);
+    while (nodeIterator()) {
+      const element = walker.currentNode.parentElement;
+      if (!this.#isOnSameLine(focusRect, element.getBoundingClientRect())) {
+        newLineElement = element;
+        break;
+      }
+    }
+    if (!newLineElement) {
+      const node = this.#getNodeOnNextPage(root, isUp);
+      if (!node) {
+        return;
+      }
+      if (select) {
+        const lastNode = (isUp ? walker.firstChild() : walker.lastChild()) || focusNode;
+        selection.extend(lastNode, isUp ? 0 : lastNode.length);
+        const range = document.createRange();
+        range.setStart(node, isUp ? node.length : 0);
+        range.setEnd(node, isUp ? node.length : 0);
+        selection.addRange(range);
+        return;
+      }
+      const [caretX] = this.#getCaretPosition(selection, isUp);
+      const {
+        parentElement
+      } = node;
+      this.#setCaretPosition(select, selection, parentElement, parentElement.getBoundingClientRect(), caretX);
+      return;
+    }
+    const [caretX, caretY] = this.#getCaretPosition(selection, isUp);
+    const newLineElementRect = newLineElement.getBoundingClientRect();
+    if (this.#isUnderOver(newLineElementRect, caretX, caretY, isUp)) {
+      this.#setCaretPosition(select, selection, newLineElement, newLineElementRect, caretX);
+      return;
+    }
+    while (nodeIterator()) {
+      const element = walker.currentNode.parentElement;
+      const elementRect = element.getBoundingClientRect();
+      if (!this.#isOnSameLine(newLineElementRect, elementRect)) {
+        break;
+      }
+      if (this.#isUnderOver(elementRect, caretX, caretY, isUp)) {
+        this.#setCaretPosition(select, selection, element, elementRect, caretX);
+        return;
+      }
+    }
+    this.#setCaretPosition(select, selection, newLineElement, newLineElementRect, caretX);
   }
 }
 
@@ -3630,7 +3997,7 @@ class PDFHistory {
     this._updateInternalState(destination, newState.uid);
     let newUrl;
     if (this._updateUrl && destination?.hash) {
-      const baseUrl = document.location.href.split("#")[0];
+      const baseUrl = document.location.href.split("#", 1)[0];
       if (!baseUrl.startsWith("file://")) {
         newUrl = `${baseUrl}#${destination.hash}`;
       }
@@ -5872,9 +6239,6 @@ class PDFThumbnailViewer {
   }
 }
 
-;// CONCATENATED MODULE: ./web/stubs.js
-const NullL10n = null;
-
 ;// CONCATENATED MODULE: ./web/annotation_editor_layer_builder.js
 
 
@@ -5887,7 +6251,7 @@ class AnnotationEditorLayerBuilder {
     this.pageDiv = options.pageDiv;
     this.pdfPage = options.pdfPage;
     this.accessibilityManager = options.accessibilityManager;
-    this.l10n = options.l10n || NullL10n;
+    this.l10n = options.l10n;
     this.annotationEditorLayer = null;
     this.div = null;
     this._cancelled = false;
@@ -6861,7 +7225,7 @@ class PDFPageView {
     this.pageColors = options.pageColors || null;
     this.eventBus = options.eventBus;
     this.renderingQueue = options.renderingQueue;
-    this.l10n = options.l10n || NullL10n;
+    this.l10n = options.l10n;
     this.renderTask = null;
     this.resume = null;
     this._annotationCanvasMap = null;
@@ -7635,7 +7999,7 @@ class PDFViewer {
   #scaleTimeoutId = null;
   #textLayerMode = TextLayerMode.ENABLE;
   constructor(options) {
-    const viewerVersion = "4.1.86";
+    const viewerVersion = "4.1.133";
     if (version !== viewerVersion) {
       throw new Error(`The API version "${version}" does not match the Viewer version "${viewerVersion}".`);
     }
@@ -7658,7 +8022,7 @@ class PDFViewer {
     this.imageResourcesPath = options.imageResourcesPath || "";
     this.enablePrintAutoRotate = options.enablePrintAutoRotate || false;
     this.maxCanvasPixels = options.maxCanvasPixels;
-    this.l10n = options.l10n || NullL10n;
+    this.l10n = options.l10n;
     this.#enablePermissions = options.enablePermissions || false;
     this.pageColors = options.pageColors || null;
     this.defaultRenderingQueue = !options.renderingQueue;
@@ -9650,6 +10014,10 @@ class ViewHistory {
 
 
 
+
+
+
+
 const FORCE_PAGES_LOADED_TIMEOUT = 10000;
 const WHEEL_ZOOM_DISABLED_TIMEOUT = 1000;
 const ViewOnLoad = {
@@ -9657,33 +10025,6 @@ const ViewOnLoad = {
   PREVIOUS: 0,
   INITIAL: 1
 };
-class DefaultExternalServices {
-  constructor() {
-    throw new Error("Cannot initialize DefaultExternalServices.");
-  }
-  static updateFindControlState(data) {}
-  static updateFindMatchesCount(data) {}
-  static initPassiveLoading(callbacks) {}
-  static reportTelemetry(data) {}
-  static createDownloadManager() {
-    throw new Error("Not implemented: createDownloadManager");
-  }
-  static createPreferences() {
-    throw new Error("Not implemented: createPreferences");
-  }
-  static async createL10n() {
-    throw new Error("Not implemented: createL10n");
-  }
-  static createScripting() {
-    throw new Error("Not implemented: createScripting");
-  }
-  static updateEditorStates(data) {
-    throw new Error("Not implemented: updateEditorStates");
-  }
-  static getNimbusExperimentData() {
-    return shadow(this, "getNimbusExperimentData", Promise.resolve(null));
-  }
-}
 const PDFViewerApplication = {
   initialBookmark: document.location.hash.substring(1),
   _initializedCapability: new PromiseCapability(),
@@ -9719,7 +10060,6 @@ const PDFViewerApplication = {
   url: "",
   baseUrl: "",
   _downloadUrl: "",
-  externalServices: DefaultExternalServices,
   _boundEvents: Object.create(null),
   documentInfo: null,
   metadata: null,
@@ -9737,6 +10077,7 @@ const PDFViewerApplication = {
   _touchInfo: null,
   _isCtrlKeyDown: false,
   _nimbusDataPromise: null,
+  _caretBrowsing: null,
   async initialize(appConfig) {
     let l10nPromise;
     l10nPromise = this.externalServices.createL10n();
@@ -9843,8 +10184,7 @@ const PDFViewerApplication = {
       ignoreDestinationZoom: AppOptions.get("ignoreDestinationZoom")
     });
     this.pdfLinkService = pdfLinkService;
-    const downloadManager = externalServices.createDownloadManager();
-    this.downloadManager = downloadManager;
+    const downloadManager = this.downloadManager = new DownloadManager();
     const findController = new PDFFindController({
       linkService: pdfLinkService,
       eventBus,
@@ -9995,7 +10335,7 @@ const PDFViewerApplication = {
     }
   },
   async run(config) {
-    this.preferences = this.externalServices.createPreferences();
+    this.preferences = new Preferences();
     await this.initialize(config);
     const {
       appConfig,
@@ -10020,6 +10360,9 @@ const PDFViewerApplication = {
       appConfig.toolbar?.viewFind?.classList.add("hidden");
     }
     this.initPassiveLoading(file);
+  },
+  get externalServices() {
+    return shadow(this, "externalServices", new ExternalServices());
   },
   get initialized() {
     return this._initializedCapability.settled;
@@ -10084,6 +10427,13 @@ const PDFViewerApplication = {
   },
   get supportsMouseWheelZoomMetaKey() {
     return shadow(this, "supportsMouseWheelZoomMetaKey", AppOptions.get("supportsMouseWheelZoomMetaKey"));
+  },
+  get supportsCaretBrowsingMode() {
+    return shadow(this, "supportsCaretBrowsingMode", AppOptions.get("supportsCaretBrowsingMode"));
+  },
+  moveCaret(isUp, select) {
+    this._caretBrowsing ||= new CaretBrowsingMode(this.appConfig.mainContainer, this.appConfig.viewerContainer, this.appConfig.toolbar?.container);
+    this._caretBrowsing.moveCaret(isUp, select);
   },
   initPassiveLoading(file) {
     this.setTitleUsingUrl(file, file);
@@ -10977,11 +11327,8 @@ async function loadFakeWorker() {
 }
 async function loadPDFBug(self) {
   const {
-    debuggerScriptPath
-  } = self.appConfig;
-  const {
     PDFBug
-  } = await import(/* webpackIgnore: true */ debuggerScriptPath);
+  } = await import(/* webpackIgnore: true */ AppOptions.get("debuggerSrc"));
   self._PDFBug = PDFBug;
 }
 function reportPageStatsPDFBug({
@@ -11583,6 +11930,11 @@ function webViewerKeyDown(evt) {
       turnOnlyIfPageFit = false;
     switch (evt.keyCode) {
       case 38:
+        if (PDFViewerApplication.supportsCaretBrowsingMode) {
+          PDFViewerApplication.moveCaret(true, false);
+          handled = true;
+          break;
+        }
       case 33:
         if (pdfViewer.isVerticalScrollbarEnabled) {
           turnOnlyIfPageFit = true;
@@ -11596,6 +11948,9 @@ function webViewerKeyDown(evt) {
         turnPage = -1;
         break;
       case 37:
+        if (PDFViewerApplication.supportsCaretBrowsingMode) {
+          return;
+        }
         if (pdfViewer.isHorizontalScrollbarEnabled) {
           turnOnlyIfPageFit = true;
         }
@@ -11614,6 +11969,11 @@ function webViewerKeyDown(evt) {
         }
         break;
       case 40:
+        if (PDFViewerApplication.supportsCaretBrowsingMode) {
+          PDFViewerApplication.moveCaret(false, false);
+          handled = true;
+          break;
+        }
       case 34:
         if (pdfViewer.isVerticalScrollbarEnabled) {
           turnOnlyIfPageFit = true;
@@ -11628,6 +11988,9 @@ function webViewerKeyDown(evt) {
         turnPage = 1;
         break;
       case 39:
+        if (PDFViewerApplication.supportsCaretBrowsingMode) {
+          return;
+        }
         if (pdfViewer.isHorizontalScrollbarEnabled) {
           turnOnlyIfPageFit = true;
         }
@@ -11681,6 +12044,14 @@ function webViewerKeyDown(evt) {
         pdfViewer.previousPage();
         handled = true;
         break;
+      case 38:
+        PDFViewerApplication.moveCaret(true, true);
+        handled = true;
+        break;
+      case 40:
+        PDFViewerApplication.moveCaret(false, true);
+        handled = true;
+        break;
       case 82:
         PDFViewerApplication.rotatePages(-90);
         break;
@@ -11720,170 +12091,8 @@ const PDFPrintServiceFactory = {
   }
 };
 
-;// CONCATENATED MODULE: ./web/preferences.js
-
-class BasePreferences {
-  #defaults = Object.freeze({
-    annotationEditorMode: 0,
-    annotationMode: 2,
-    cursorToolOnLoad: 0,
-    defaultZoomDelay: 400,
-    defaultZoomValue: "",
-    disablePageLabels: false,
-    enableHighlightEditor: false,
-    enablePermissions: false,
-    enablePrintAutoRotate: true,
-    enableScripting: true,
-    externalLinkTarget: 0,
-    highlightEditorColors: "yellow=#FFFF98,green=#53FFBC,blue=#80EBFF,pink=#FFCBE6,red=#FF4F5F",
-    historyUpdateUrl: false,
-    ignoreDestinationZoom: false,
-    forcePageColors: false,
-    pageColorsBackground: "Canvas",
-    pageColorsForeground: "CanvasText",
-    pdfBugEnabled: false,
-    sidebarViewOnLoad: -1,
-    scrollModeOnLoad: -1,
-    spreadModeOnLoad: -1,
-    textLayerMode: 1,
-    viewOnLoad: 0,
-    disableAutoFetch: false,
-    disableFontFace: false,
-    disableRange: false,
-    disableStream: false,
-    enableXfa: true
-  });
-  #prefs = Object.create(null);
-  #initializedPromise = null;
-  constructor() {
-    if (this.constructor === BasePreferences) {
-      throw new Error("Cannot initialize BasePreferences.");
-    }
-    this.#initializedPromise = this._readFromStorage(this.#defaults).then(({
-      browserPrefs,
-      prefs
-    }) => {
-      const BROWSER_PREFS = {
-        canvasMaxAreaInBytes: -1,
-        isInAutomation: false,
-        supportsDocumentFonts: true,
-        supportsIntegratedFind: false,
-        supportsMouseWheelZoomCtrlKey: true,
-        supportsMouseWheelZoomMetaKey: true,
-        supportsPinchToZoom: true
-      };
-      const options = Object.create(null);
-      for (const [name, defaultVal] of Object.entries(BROWSER_PREFS)) {
-        const prefVal = browserPrefs?.[name];
-        options[name] = typeof prefVal === typeof defaultVal ? prefVal : defaultVal;
-      }
-      for (const [name, defaultVal] of Object.entries(this.#defaults)) {
-        const prefVal = prefs?.[name];
-        options[name] = this.#prefs[name] = typeof prefVal === typeof defaultVal ? prefVal : defaultVal;
-      }
-      AppOptions.setAll(options, true);
-    });
-  }
-  async _writeToStorage(prefObj) {
-    throw new Error("Not implemented: _writeToStorage");
-  }
-  async _readFromStorage(prefObj) {
-    throw new Error("Not implemented: _readFromStorage");
-  }
-  async reset() {
-    throw new Error("Please use `about:config` to change preferences.");
-  }
-  async set(name, value) {
-    throw new Error("Please use `about:config` to change preferences.");
-  }
-  async get(name) {
-    await this.#initializedPromise;
-    const defaultValue = this.#defaults[name];
-    if (defaultValue === undefined) {
-      throw new Error(`Get preference: "${name}" is undefined.`);
-    }
-    return this.#prefs[name] ?? defaultValue;
-  }
-  get initializedPromise() {
-    return this.#initializedPromise;
-  }
-}
-
-;// CONCATENATED MODULE: ./web/l10n.js
-class L10n {
-  #dir;
-  #lang;
-  #l10n;
-  constructor({
-    lang,
-    isRTL
-  }, l10n = null) {
-    this.#lang = L10n.#fixupLangCode(lang);
-    this.#l10n = l10n;
-    this.#dir = isRTL ?? L10n.#isRTL(this.#lang) ? "rtl" : "ltr";
-  }
-  _setL10n(l10n) {
-    this.#l10n = l10n;
-  }
-  getLanguage() {
-    return this.#lang;
-  }
-  getDirection() {
-    return this.#dir;
-  }
-  async get(ids, args = null, fallback) {
-    if (Array.isArray(ids)) {
-      ids = ids.map(id => ({
-        id
-      }));
-      const messages = await this.#l10n.formatMessages(ids);
-      return messages.map(message => message.value);
-    }
-    const messages = await this.#l10n.formatMessages([{
-      id: ids,
-      args
-    }]);
-    return messages?.[0].value || fallback;
-  }
-  async translate(element) {
-    try {
-      this.#l10n.connectRoot(element);
-      await this.#l10n.translateRoots();
-    } catch {}
-  }
-  pause() {
-    this.#l10n.pauseObserving();
-  }
-  resume() {
-    this.#l10n.resumeObserving();
-  }
-  static #fixupLangCode(langCode) {
-    langCode = langCode?.toLowerCase() || "en-us";
-    const PARTIAL_LANG_CODES = {
-      en: "en-us",
-      es: "es-es",
-      fy: "fy-nl",
-      ga: "ga-ie",
-      gu: "gu-in",
-      hi: "hi-in",
-      hy: "hy-am",
-      nb: "nb-no",
-      ne: "ne-np",
-      nn: "nn-no",
-      pa: "pa-in",
-      pt: "pt-pt",
-      sv: "sv-se",
-      zh: "zh-cn"
-    };
-    return PARTIAL_LANG_CODES[langCode] || langCode;
-  }
-  static #isRTL(lang) {
-    const shortCode = lang.split("-", 1)[0];
-    return ["ar", "he", "fa", "ps", "ur"].includes(shortCode);
-  }
-}
-
 ;// CONCATENATED MODULE: ./web/firefoxcom.js
+
 
 
 
@@ -11977,7 +12186,7 @@ class DownloadManager {
     });
   }
 }
-class FirefoxPreferences extends BasePreferences {
+class Preferences extends BasePreferences {
   async _readFromStorage(prefObj) {
     return FirefoxCom.requestAsync("getPreferences", prefObj);
   }
@@ -12087,14 +12296,14 @@ class FirefoxScripting {
     FirefoxCom.request("destroySandbox", null);
   }
 }
-class FirefoxExternalServices extends DefaultExternalServices {
-  static updateFindControlState(data) {
+class ExternalServices extends BaseExternalServices {
+  updateFindControlState(data) {
     FirefoxCom.request("updateFindControlState", data);
   }
-  static updateFindMatchesCount(data) {
+  updateFindMatchesCount(data) {
     FirefoxCom.request("updateFindMatchesCount", data);
   }
-  static initPassiveLoading(callbacks) {
+  initPassiveLoading(callbacks) {
     let pdfDataRangeTransport;
     window.addEventListener("message", function windowMessage(e) {
       if (e.source !== null) {
@@ -12141,31 +12350,23 @@ class FirefoxExternalServices extends DefaultExternalServices {
     });
     FirefoxCom.request("initPassiveLoading", null);
   }
-  static reportTelemetry(data) {
+  reportTelemetry(data) {
     FirefoxCom.request("reportTelemetry", JSON.stringify(data));
   }
-  static createDownloadManager() {
-    return new DownloadManager();
-  }
-  static createPreferences() {
-    return new FirefoxPreferences();
-  }
-  static updateEditorStates(data) {
+  updateEditorStates(data) {
     FirefoxCom.request("updateEditorStates", data);
   }
-  static async createL10n() {
+  async createL10n() {
     const [localeProperties] = await Promise.all([FirefoxCom.requestAsync("getLocaleProperties", null), document.l10n.ready]);
     return new L10n(localeProperties, document.l10n);
   }
-  static createScripting() {
+  createScripting() {
     return FirefoxScripting;
   }
-  static async getNimbusExperimentData() {
-    const nimbusData = await FirefoxCom.requestAsync("getNimbusExperimentData", null);
-    return nimbusData && JSON.parse(nimbusData);
+  async getNimbusExperimentData() {
+    return null;
   }
 }
-PDFViewerApplication.externalServices = FirefoxExternalServices;
 
 ;// CONCATENATED MODULE: ./web/print_utils.js
 
@@ -12321,8 +12522,8 @@ PDFPrintServiceFactory.instance = {
 
 
 
-const pdfjsVersion = "4.1.86";
-const pdfjsBuild = "bf9236009";
+const pdfjsVersion = "4.1.133";
+const pdfjsBuild = "60fd9d583";
 const AppConstants = null;
 window.PDFViewerApplication = PDFViewerApplication;
 window.PDFViewerApplicationConstants = AppConstants;
@@ -12450,9 +12651,7 @@ function getViewerConfiguration() {
       editorStampAddImage: document.getElementById("editorStampAddImage"),
       editorFreeHighlightThickness: document.getElementById("editorFreeHighlightThickness")
     },
-    printContainer: document.getElementById("printContainer"),
-    openFileInput: null,
-    debuggerScriptPath: "./debugger.mjs"
+    printContainer: document.getElementById("printContainer")
   };
 }
 function webViewerLoad() {

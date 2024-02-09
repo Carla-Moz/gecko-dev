@@ -9,15 +9,15 @@ import { JsonSchema } from "resource://gre/modules/JsonSchema.sys.mjs";
 const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
+  FeatureCalloutBroker:
+    "resource:///modules/asrouter/FeatureCalloutBroker.sys.mjs",
+  InfoBar: "resource:///modules/asrouter/InfoBar.sys.mjs",
   SpecialMessageActions:
     "resource://messaging-system/lib/SpecialMessageActions.sys.mjs",
-  FeatureCalloutBroker:
-    "resource://activity-stream/lib/FeatureCalloutBroker.sys.mjs",
+  Spotlight: "resource:///modules/asrouter/Spotlight.sys.mjs",
 });
 XPCOMUtils.defineLazyModuleGetters(lazy, {
-  InfoBar: "resource://activity-stream/lib/InfoBar.jsm",
-  Spotlight: "resource://activity-stream/lib/Spotlight.jsm",
-  CFRPageActions: "resource://activity-stream/lib/CFRPageActions.jsm",
+  CFRPageActions: "resource:///modules/asrouter/CFRPageActions.jsm",
 });
 
 function dispatchCFRAction({ type, data }, browser) {
@@ -65,7 +65,7 @@ export class AboutMessagePreviewParent extends JSWindowActorParent {
     }
 
     const schema = await fetch(
-      "resource://activity-stream/schemas/MessagingExperiment.schema.json",
+      "chrome://browser/content/asrouter/schemas/MessagingExperiment.schema.json",
       { credentials: "omit" }
     ).then(rsp => rsp.json());
 

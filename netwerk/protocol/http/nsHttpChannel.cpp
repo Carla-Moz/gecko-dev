@@ -954,7 +954,9 @@ nsresult nsHttpChannel::ContinueConnect() {
   }
 
   // hit the net...
-  return DoConnect(mTransactionSticky);
+  nsresult rv = DoConnect(mTransactionSticky);
+  mTransactionSticky = nullptr;
+  return rv;
 }
 
 nsresult nsHttpChannel::DoConnect(HttpTransactionShell* aTransWithStickyConn) {
@@ -2598,6 +2600,32 @@ nsresult nsHttpChannel::ContinueProcessResponseAfterNotModified(nsresult aRv) {
   return rv;
 }
 
+static void ReportHttpResponseVersion(HttpVersion version) {
+  if (Telemetry::CanRecordPrereleaseData()) {
+    Telemetry::Accumulate(Telemetry::HTTP_RESPONSE_VERSION,
+                          static_cast<uint32_t>(version));
+  }
+
+  nsAutoCString versionLabel;
+  switch (version) {
+    case HttpVersion::v0_9:
+    case HttpVersion::v1_0:
+    case HttpVersion::v1_1:
+      versionLabel = "http_1"_ns;
+      break;
+    case HttpVersion::v2_0:
+      versionLabel = "http_2"_ns;
+      break;
+    case HttpVersion::v3_0:
+      versionLabel = "http_3"_ns;
+      break;
+    default:
+      versionLabel = "unknown"_ns;
+      break;
+  }
+  mozilla::glean::networking::http_response_version.Get(versionLabel).Add(1);
+}
+
 void nsHttpChannel::UpdateCacheDisposition(bool aSuccessfulReval,
                                            bool aPartialContentUsed) {
   if (mRaceDelay && !mRaceCacheWithNetwork &&
@@ -2623,9 +2651,6 @@ void nsHttpChannel::UpdateCacheDisposition(bool aSuccessfulReval,
     AccumulateCacheHitTelemetry(cacheDisposition, this);
     mCacheDisposition = cacheDisposition;
 
-    Telemetry::Accumulate(Telemetry::HTTP_RESPONSE_VERSION,
-                          static_cast<uint32_t>(mResponseHead->Version()));
-
     if (mResponseHead->Version() == HttpVersion::v0_9) {
       // DefaultPortTopLevel = 0, DefaultPortSubResource = 1,
       // NonDefaultPortTopLevel = 2, NonDefaultPortSubResource = 3
@@ -2639,6 +2664,8 @@ void nsHttpChannel::UpdateCacheDisposition(bool aSuccessfulReval,
       Telemetry::Accumulate(Telemetry::HTTP_09_INFO, v09Info);
     }
   }
+
+  ReportHttpResponseVersion(mResponseHead->Version());
 }
 
 nsresult nsHttpChannel::ContinueProcessResponse4(nsresult rv) {
@@ -6141,14 +6168,11 @@ nsHttpChannel::AsyncOpen(nsIStreamListener* aListener) {
   // Note that we don't recalculate the header if it has been modified since the
   // channel was created because we want to preserve the modified header.
   if (!LoadIsUserAgentHeaderModified()) {
-    rv = mRequestHead.ClearHeader(nsHttp::User_Agent);
-    MOZ_ASSERT(NS_SUCCEEDED(rv));
-
     rv = mRequestHead.SetHeader(
         nsHttp::User_Agent,
         gHttpHandler->UserAgent(nsContentUtils::ShouldResistFingerprinting(
             this, RFPTarget::HttpUserAgent)),
-        false, nsHttpHeaderArray::eVarietyRequestDefault);
+        false, nsHttpHeaderArray::eVarietyRequestEnforceDefault);
     MOZ_ASSERT(NS_SUCCEEDED(rv));
   }
 
@@ -8196,8 +8220,6 @@ nsresult nsHttpChannel::ContinueOnStopRequest(nsresult aStatus, bool aIsFromNet,
 
   // The prefetch needs to be released on the main thread
   mDNSPrefetch = nullptr;
-
-  mTransactionSticky = nullptr;
 
   mRedirectChannel = nullptr;
 

@@ -13,8 +13,7 @@
  */
 
 // http://www.whatwg.org/specs/web-apps/current-work/#the-object-element
-[NeedResolve,
- Exposed=Window]
+[Exposed=Window]
 interface HTMLObjectElement : HTMLElement {
   [HTMLConstructor] constructor();
 
@@ -86,11 +85,9 @@ interface mixin MozObjectLoadingContent {
   [ChromeOnly]
   const unsigned long TYPE_LOADING     = 0;
   [ChromeOnly]
+  const unsigned long TYPE_DOCUMENT    = 1;
+  [ChromeOnly]
   const unsigned long TYPE_FALLBACK    = 2;
-  [ChromeOnly]
-  const unsigned long TYPE_DOCUMENT    = 3;
-  [ChromeOnly]
-  const unsigned long TYPE_NULL        = 4;
 
   /**
    * The actual mime type (the one we got back from the network
@@ -107,22 +104,11 @@ interface mixin MozObjectLoadingContent {
   readonly attribute unsigned long displayedType;
 
   /**
-   * Forces a re-evaluation and reload of the tag.
-   * This can be used when the MIME type that provides a type has changed, for
-   * instance, to force the tag to re-evalulate the handler to use.
-   */
-  [ChromeOnly, Throws]
-  undefined reload();
-
-  /**
    * The URL of the data/src loaded in the object. This may be null (i.e.
    * an <embed> with no src).
    */
   [ChromeOnly]
   readonly attribute URI? srcURI;
-
-  [ChromeOnly, Throws, NeedsCallerType]
-  readonly attribute unsigned long runID;
 };
 
 HTMLObjectElement includes MozFrameLoaderOwner;

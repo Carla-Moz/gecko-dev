@@ -307,6 +307,8 @@ skip-if = [
   "verify && !debug && os == 'mac'",
 ]
 
+["browser_ext_optionsPage_activity.js"]
+
 ["browser_ext_optionsPage_browser_style.js"]
 
 ["browser_ext_optionsPage_links_open_in_tabs.js"]
@@ -380,6 +382,8 @@ run-if = ["crashreporter"]
 ["browser_ext_reload_manifest_cache.js"]
 
 ["browser_ext_request_permissions.js"]
+
+["browser_ext_runtime_onPerformanceWarning.js"]
 
 ["browser_ext_runtime_openOptionsPage.js"]
 
@@ -455,6 +459,7 @@ https_first_disabled = true
 skip-if = [
   "debug",
   "asan",
+  "tsan" # Bug 1874317
 ]
 
 ["browser_ext_tab_runtimeConnect.js"]
@@ -608,9 +613,6 @@ skip-if = [
   "win11_2009 && asan", # Bug 1797751
   "win11_2009 && debug", # Bug 1797751
 ]
-
-["browser_ext_urlbar.js"]
-https_first_disabled = true
 
 ["browser_ext_user_events.js"]
 

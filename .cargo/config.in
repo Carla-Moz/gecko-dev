@@ -20,14 +20,19 @@ git = "https://github.com/chris-zen/coremidi.git"
 rev = "fc68464b5445caf111e41f643a2e69ccce0b4f83"
 replace-with = "vendored-sources"
 
+[source."git+https://github.com/cloudflare/quiche?rev=09ea4b244096a013071cfe2175bbf2945fb7f8d1"]
+git = "https://github.com/cloudflare/quiche"
+rev = "09ea4b244096a013071cfe2175bbf2945fb7f8d1"
+replace-with = "vendored-sources"
+
 [source."git+https://github.com/franziskuskiefer/cose-rust?rev=43c22248d136c8b38fe42ea709d08da6355cf04b"]
 git = "https://github.com/franziskuskiefer/cose-rust"
 rev = "43c22248d136c8b38fe42ea709d08da6355cf04b"
 replace-with = "vendored-sources"
 
-[source."git+https://github.com/gfx-rs/wgpu?rev=f9509bcf9ec2b63a64eb7fea93f7f44cd5ae4d2e"]
+[source."git+https://github.com/gfx-rs/wgpu?rev=07e59eb6fc7de3f682f1c401b9cf9f0da9ee4b4a"]
 git = "https://github.com/gfx-rs/wgpu"
-rev = "f9509bcf9ec2b63a64eb7fea93f7f44cd5ae4d2e"
+rev = "07e59eb6fc7de3f682f1c401b9cf9f0da9ee4b4a"
 replace-with = "vendored-sources"
 
 [source."git+https://github.com/glandium/mio?rev=9a2ef335c366044ffe73b1c4acabe50a1daefe05"]
@@ -55,9 +60,9 @@ git = "https://github.com/mozilla-spidermonkey/jsparagus"
 rev = "61f399c53a641ebd3077c1f39f054f6d396a633c"
 replace-with = "vendored-sources"
 
-[source."git+https://github.com/mozilla/application-services?rev=9d1ab279d2aa31e4c6c80dd1ee0baf9345e26253"]
+[source."git+https://github.com/mozilla/application-services?rev=41367fda038268843a87c459698691f33f0d9063"]
 git = "https://github.com/mozilla/application-services"
-rev = "9d1ab279d2aa31e4c6c80dd1ee0baf9345e26253"
+rev = "41367fda038268843a87c459698691f33f0d9063"
 replace-with = "vendored-sources"
 
 [source."git+https://github.com/mozilla/audioipc?rev=596bdb7fbb5745ea415726e16bd497e6c850a540"]
@@ -80,14 +85,14 @@ git = "https://github.com/mozilla/midir.git"
 rev = "85156e360a37d851734118104619f86bd18e94c6"
 replace-with = "vendored-sources"
 
-[source."git+https://github.com/mozilla/mp4parse-rust?rev=d262e40e7b80f949dcdb4db21caa6dbf1a8b2043"]
+[source."git+https://github.com/mozilla/mp4parse-rust?rev=a138e40ec1c603615873e524b5b22e11c0ec4820"]
 git = "https://github.com/mozilla/mp4parse-rust"
-rev = "d262e40e7b80f949dcdb4db21caa6dbf1a8b2043"
+rev = "a138e40ec1c603615873e524b5b22e11c0ec4820"
 replace-with = "vendored-sources"
 
-[source."git+https://github.com/mozilla/neqo?tag=v0.6.8"]
+[source."git+https://github.com/mozilla/neqo?tag=v0.7.0"]
 git = "https://github.com/mozilla/neqo"
-tag = "v0.6.8"
+tag = "v0.7.0"
 replace-with = "vendored-sources"
 
 [source."git+https://github.com/mozilla/uniffi-rs.git?rev=afb29ebdc1d9edf15021b1c5332fc9f285bbe13b"]

@@ -127,7 +127,6 @@
 #include "mozilla/StoragePrincipalHelper.h"
 #include "mozilla/StyleSheet.h"
 #include "mozilla/Telemetry.h"
-#include "mozilla/TelemetryHistogramEnums.h"
 #include "mozilla/TelemetryScalarEnums.h"
 #include "mozilla/TextControlElement.h"
 #include "mozilla/TextEditor.h"
@@ -4352,25 +4351,6 @@ void Document::SetContentType(const nsACString& aContentType) {
   mContentType = aContentType;
 }
 
-bool Document::GetAllowPlugins() {
-  // First, we ask our docshell if it allows plugins.
-  auto* browsingContext = GetBrowsingContext();
-
-  if (browsingContext) {
-    if (!browsingContext->GetAllowPlugins()) {
-      return false;
-    }
-
-    // If the docshell allows plugins, we check whether
-    // we are sandboxed and plugins should not be allowed.
-    if (mSandboxFlags & SANDBOXED_PLUGINS) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
 bool Document::HasPendingInitialTranslation() {
   return mDocumentL10n && mDocumentL10n->GetState() != DocumentL10nState::Ready;
 }
@@ -7700,8 +7680,7 @@ bool Document::ContainsEMEContent() {
 
 bool Document::ContainsMSEContent() {
   bool containsMSE = false;
-
-  auto check = [&containsMSE](nsISupports* aSupports) {
+  EnumerateActivityObservers([&containsMSE](nsISupports* aSupports) {
     nsCOMPtr<nsIContent> content(do_QueryInterface(aSupports));
     if (auto* mediaElem = HTMLMediaElement::FromNodeOrNull(content)) {
       RefPtr<MediaSource> ms = mediaElem->GetMozMediaSourceObject();
@@ -7709,9 +7688,7 @@ bool Document::ContainsMSEContent() {
         containsMSE = true;
       }
     }
-  };
-
-  EnumerateActivityObservers(check);
+  });
   return containsMSE;
 }
 
@@ -9297,12 +9274,8 @@ class Document::TitleChangeEvent final : public Runnable {
  public:
   explicit TitleChangeEvent(Document* aDoc)
       : Runnable("Document::TitleChangeEvent"),
-        mDoc(aDoc)
-#ifndef ANDROID
-        ,
-        mBlockOnload(aDoc->IsInChromeDocShell())
-#endif
-  {
+        mDoc(aDoc),
+        mBlockOnload(aDoc->IsInChromeDocShell()) {
     if (mBlockOnload) {
       mDoc->BlockOnload();
     }
@@ -10994,12 +10967,10 @@ void Document::FlushExternalResources(FlushType aType) {
     return;
   }
 
-  auto flush = [aType](Document& aDoc) {
+  EnumerateExternalResources([aType](Document& aDoc) {
     aDoc.FlushPendingNotifications(aType);
     return CallState::Continue;
-  };
-
-  EnumerateExternalResources(flush);
+  });
 }
 
 void Document::SetXMLDeclaration(const char16_t* aVersion,
@@ -11866,11 +11837,10 @@ void Document::OnPageShow(bool aPersisted, EventTarget* aDispatchStartTarget,
 
   NotifyActivityChanged();
 
-  auto notifyExternal = [aPersisted](Document& aExternalResource) {
+  EnumerateExternalResources([aPersisted](Document& aExternalResource) {
     aExternalResource.OnPageShow(aPersisted, nullptr);
     return CallState::Continue;
-  };
-  EnumerateExternalResources(notifyExternal);
+  });
 
   if (mAnimationController) {
     mAnimationController->OnPageShow();
@@ -11968,11 +11938,10 @@ void Document::OnPageHide(bool aPersisted, EventTarget* aDispatchStartTarget,
     UpdateVisibilityState();
   }
 
-  auto notifyExternal = [aPersisted](Document& aExternalResource) {
+  EnumerateExternalResources([aPersisted](Document& aExternalResource) {
     aExternalResource.OnPageHide(aPersisted, nullptr);
     return CallState::Continue;
-  };
-  EnumerateExternalResources(notifyExternal);
+  });
   NotifyActivityChanged();
 
   ClearPendingFullscreenRequests(this);
@@ -12338,12 +12307,10 @@ void Document::SuppressEventHandling(uint32_t aIncrease) {
     ScriptLoader()->AddExecuteBlocker();
   }
 
-  auto suppressInSubDoc = [aIncrease](Document& aSubDoc) {
+  EnumerateSubDocuments([aIncrease](Document& aSubDoc) {
     aSubDoc.SuppressEventHandling(aIncrease);
     return CallState::Continue;
-  };
-
-  EnumerateSubDocuments(suppressInSubDoc);
+  });
 }
 
 void Document::NotifyAbortedLoad() {
@@ -12736,11 +12703,10 @@ static void GetAndUnsuppressSubDocuments(
     aDocument.ScriptLoader()->RemoveExecuteBlocker();
   }
   aDocuments.AppendElement(&aDocument);
-  auto recurse = [&aDocuments](Document& aSubDoc) {
+  aDocument.EnumerateSubDocuments([&aDocuments](Document& aSubDoc) {
     GetAndUnsuppressSubDocuments(aSubDoc, aDocuments);
     return CallState::Continue;
-  };
-  aDocument.EnumerateSubDocuments(recurse);
+  });
 }
 
 void Document::UnsuppressEventHandlingAndFireEvents(bool aFireEvents) {
@@ -12818,11 +12784,10 @@ void Document::FireOrClearPostMessageEvents(bool aFireEvents) {
 
 void Document::SetSuppressedEventListener(EventListener* aListener) {
   mSuppressedEventListener = aListener;
-  auto setOnSubDocs = [&](Document& aDocument) {
+  EnumerateSubDocuments([&](Document& aDocument) {
     aDocument.SetSuppressedEventListener(aListener);
     return CallState::Continue;
-  };
-  EnumerateSubDocuments(setOnSubDocs);
+  });
 }
 
 bool Document::IsActive() const {
@@ -14188,11 +14153,10 @@ void EvaluateMediaQueryLists(nsTArray<RefPtr<MediaQueryList>>& aListsToNotify,
   if (!aRecurse) {
     return;
   }
-  auto recurse = [&](Document& aSubDoc) {
+  aDocument.EnumerateSubDocuments([&](Document& aSubDoc) {
     EvaluateMediaQueryLists(aListsToNotify, aSubDoc, true);
     return CallState::Continue;
-  };
-  aDocument.EnumerateSubDocuments(recurse);
+  });
 }
 
 void Document::EvaluateMediaQueriesAndReportChanges(bool aRecurse) {
@@ -14362,7 +14326,7 @@ class PendingFullscreenChangeList {
         if (aDoc->GetBrowsingContext()) {
           mRootBCForIteration = aDoc->GetBrowsingContext();
           if (aOption == eDocumentsWithSameRoot) {
-            RefPtr<BrowsingContext> bc =
+            BrowsingContext* bc =
                 GetParentIgnoreChromeBoundary(mRootBCForIteration);
             while (bc) {
               mRootBCForIteration = bc;
@@ -14382,14 +14346,14 @@ class PendingFullscreenChangeList {
     bool AtEnd() const { return mCurrent == nullptr; }
 
    private:
-    already_AddRefed<BrowsingContext> GetParentIgnoreChromeBoundary(
+    static BrowsingContext* GetParentIgnoreChromeBoundary(
         BrowsingContext* aBC) {
       // Chrome BrowsingContexts are only available in the parent process, so if
       // we're in a content process, we only worry about the context tree.
       if (XRE_IsParentProcess()) {
         return aBC->Canonical()->GetParentCrossChromeBoundary();
       }
-      return do_AddRef(aBC->GetParent());
+      return aBC->GetParent();
     }
 
     UniquePtr<T> TakeAndNextInternal() {
@@ -14401,8 +14365,7 @@ class PendingFullscreenChangeList {
     void SkipToNextMatch() {
       while (mCurrent) {
         if (mCurrent->Type() == T::kType) {
-          RefPtr<BrowsingContext> bc =
-              mCurrent->Document()->GetBrowsingContext();
+          BrowsingContext* bc = mCurrent->Document()->GetBrowsingContext();
           if (!bc) {
             // Always automatically drop fullscreen changes which are
             // from a document detached from the doc shell.
@@ -14512,13 +14475,12 @@ void Document::AsyncExitFullscreen(Document* aDoc) {
 static uint32_t CountFullscreenSubDocuments(Document& aDoc) {
   uint32_t count = 0;
   // FIXME(emilio): Should this be recursive and dig into our nested subdocs?
-  auto subDoc = [&count](Document& aSubDoc) {
+  aDoc.EnumerateSubDocuments([&count](Document& aSubDoc) {
     if (aSubDoc.Fullscreen()) {
       count++;
     }
     return CallState::Continue;
-  };
-  aDoc.EnumerateSubDocuments(subDoc);
+  });
   return count;
 }
 
@@ -14539,11 +14501,10 @@ static Document* GetFullscreenLeaf(Document& aDoc) {
     return nullptr;
   }
   Document* leaf = nullptr;
-  auto recurse = [&leaf](Document& aSubDoc) {
+  aDoc.EnumerateSubDocuments([&leaf](Document& aSubDoc) {
     leaf = GetFullscreenLeaf(aSubDoc);
     return leaf ? CallState::Stop : CallState::Continue;
-  };
-  aDoc.EnumerateSubDocuments(recurse);
+  });
   return leaf;
 }
 
@@ -16081,40 +16042,6 @@ bool Document::HasScriptsBlockedBySandbox() const {
   return mSandboxFlags & SANDBOXED_SCRIPTS;
 }
 
-// Some use-counter sanity-checking.
-static_assert(size_t(eUseCounter_EndCSSProperties) -
-                      size_t(eUseCounter_FirstCSSProperty) ==
-                  size_t(eCSSProperty_COUNT_with_aliases),
-              "We should have the right amount of CSS property use counters");
-static_assert(size_t(eUseCounter_Count) -
-                      size_t(eUseCounter_FirstCountedUnknownProperty) ==
-                  size_t(CountedUnknownProperty::Count),
-              "We should have the right amount of counted unknown properties"
-              " use counters");
-static_assert(size_t(eUseCounter_Count) * 2 ==
-                  size_t(Telemetry::HistogramUseCounterCount),
-              "There should be two histograms (document and page)"
-              " for each use counter");
-
-#define ASSERT_CSS_COUNTER(id_, method_)                        \
-  static_assert(size_t(eUseCounter_property_##method_) -        \
-                        size_t(eUseCounter_FirstCSSProperty) == \
-                    size_t(id_),                                \
-                "Order for CSS counters and CSS property id should match");
-#define CSS_PROP_PUBLIC_OR_PRIVATE(publicname_, privatename_) privatename_
-#define CSS_PROP_LONGHAND(name_, id_, method_, ...) \
-  ASSERT_CSS_COUNTER(eCSSProperty_##id_, method_)
-#define CSS_PROP_SHORTHAND(name_, id_, method_, ...) \
-  ASSERT_CSS_COUNTER(eCSSProperty_##id_, method_)
-#define CSS_PROP_ALIAS(name_, aliasid_, id_, method_, ...) \
-  ASSERT_CSS_COUNTER(eCSSPropertyAlias_##aliasid_, method_)
-#include "mozilla/ServoCSSPropList.h"
-#undef CSS_PROP_ALIAS
-#undef CSS_PROP_SHORTHAND
-#undef CSS_PROP_LONGHAND
-#undef CSS_PROP_PUBLIC_OR_PRIVATE
-#undef ASSERT_CSS_COUNTER
-
 void Document::SetCssUseCounterBits() {
   if (StaticPrefs::layout_css_use_counters_enabled()) {
     for (size_t i = 0; i < eCSSProperty_COUNT_with_aliases; ++i) {
@@ -16143,8 +16070,6 @@ void Document::InitUseCounters() {
     return;
   }
   mUseCountersInitialized = true;
-
-  static_assert(Telemetry::HistogramUseCounterCount > 0);
 
   if (!ShouldIncludeInTelemetry()) {
     return;
@@ -16193,7 +16118,7 @@ void Document::InitUseCounters() {
 // page split, we can see that N documents would be affected, but
 // only a single web page would be affected.
 //
-// The difference between the values of these two histograms and the
+// The difference between the values of these two counts and the
 // related use counters below tell us how many pages did *not* use
 // the feature in question.  For instance, if we see that a given
 // session has destroyed 30 content documents, but a particular use
@@ -16201,7 +16126,7 @@ void Document::InitUseCounters() {
 // counter was *not* used in 25 of those 30 documents.
 //
 // We do things this way, rather than accumulating a boolean flag
-// for each use counter, to avoid sending histograms for features
+// for each use counter, to avoid sending data for features
 // that don't get widely used.  Doing things in this fashion means
 // smaller telemetry payloads and faster processing on the server
 // side.
@@ -16213,10 +16138,7 @@ void Document::ReportDocumentUseCounters() {
   mReportedDocumentUseCounters = true;
 
   // Note that a document is being destroyed.  See the comment above for how
-  // use counter histograms are interpreted relative to this measurement.
-  // TOP_LEVEL_CONTENT_DOCUMENTS_DESTROYED is recorded in
-  // WindowGlobalParent::FinishAccumulatingPageUseCounters.
-  Telemetry::Accumulate(Telemetry::CONTENT_DOCUMENTS_DESTROYED, 1);
+  // use counter data are interpreted relative to this measurement.
   glean::use_counter::content_documents_destroyed.Add();
 
   // Ask all of our resource documents to report their own document use
@@ -16243,14 +16165,11 @@ void Document::ReportDocumentUseCounters() {
       continue;
     }
 
-    auto id = static_cast<Telemetry::HistogramID>(
-        Telemetry::HistogramFirstUseCounter + uc * 2);
+    const char* metricName = IncrementUseCounter(uc, /* aIsPage = */ false);
     if (dumpCounters) {
-      printf_stderr("USE_COUNTER_DOCUMENT: %s - %s\n",
-                    Telemetry::GetHistogramName(id), urlForLogging->get());
+      printf_stderr("USE_COUNTER_DOCUMENT: %s - %s\n", metricName,
+                    urlForLogging->get());
     }
-    Telemetry::Accumulate(id, 1);
-    IncrementUseCounter(uc, /* aIsPage = */ false);
   }
 }
 
@@ -17238,18 +17157,19 @@ void Document::ScheduleResizeObserversNotification() const {
 }
 
 static void FlushLayoutForWholeBrowsingContextTree(Document& aDoc) {
+  const ChangesToFlush ctf(FlushType::Layout, /* aFlushAnimations = */ false);
   BrowsingContext* bc = aDoc.GetBrowsingContext();
   if (bc && bc->GetExtantDocument() == &aDoc) {
     RefPtr<BrowsingContext> top = bc->Top();
-    top->PreOrderWalk([](BrowsingContext* aCur) {
+    top->PreOrderWalk([ctf](BrowsingContext* aCur) {
       if (Document* doc = aCur->GetExtantDocument()) {
-        doc->FlushPendingNotifications(FlushType::Layout);
+        doc->FlushPendingNotifications(ctf);
       }
     });
   } else {
     // If there is no browsing context, or we're not the current document of the
     // browsing context, then we just flush this document itself.
-    aDoc.FlushPendingNotifications(FlushType::Layout);
+    aDoc.FlushPendingNotifications(ctf);
   }
 }
 

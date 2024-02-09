@@ -7,15 +7,15 @@
 //!
 //! - **`api_log_info`** --- Log all API entry points at info instead of trace level.
 //! - **`resource_log_info`** --- Log resource lifecycle management at info instead of trace level.
-//! - **`link`** _(enabled by default)_ --- Use static linking for libraries. Disale to manually
+//! - **`link`** _(enabled by default)_ --- Use static linking for libraries. Disable to manually
 //!   link. Enabled by default.
 //! - **`renderdoc`** --- Support the Renderdoc graphics debugger:
 //!   [https://renderdoc.org/](https://renderdoc.org/)
 //! - **`strict_asserts`** --- Apply run-time checks, even in release builds. These are in addition
 //!   to the validation carried out at public APIs in all builds.
+//! - **`serde`** --- Enables serialization via `serde` on common wgpu types.
 //! - **`trace`** --- Enable API tracing.
 //! - **`replay`** --- Enable API replaying
-//! - **`serial-pass`** --- Enable serializable compute/render passes, and bundle encoders.
 //! - **`wgsl`** --- Enable `ShaderModuleSource::Wgsl`
 //! - **`fragile-send-sync-non-atomic-wasm`** --- Implement `Send` and `Sync` on Wasm, but only if
 //!   atomics are not enabled.
@@ -58,7 +58,7 @@
     clippy::needless_lifetimes,
     // No need for defaults in the internal types.
     clippy::new_without_default,
-    // Needless updates are more scaleable, easier to play with features.
+    // Needless updates are more scalable, easier to play with features.
     clippy::needless_update,
     // Need many arguments for some core functions to be able to re-use code in many situations.
     clippy::too_many_arguments,
@@ -289,7 +289,7 @@ define_backend_caller! { gfx_if_empty, gfx_if_empty_hidden, "empty" if all(
 /// where the `device_create_buffer` method is defined like this:
 ///
 /// ```ignore
-/// impl<...> Global<...> {
+/// impl Global {
 ///    pub fn device_create_buffer<A: HalApi>(&self, ...) -> ...
 ///    { ... }
 /// }

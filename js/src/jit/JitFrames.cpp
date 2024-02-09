@@ -498,12 +498,15 @@ static bool ProcessTryNotesBaseline(JSContext* cx, const JSJitFrameIter& frame,
         }
 
         // Drop the exception instead of leaking cross compartment data.
-        if (!cx->getPendingException(
-                MutableHandleValue::fromMarkedLocation(&rfe->exception)) ||
-            !cx->getPendingExceptionStack(
-                MutableHandleValue::fromMarkedLocation(&rfe->exceptionStack))) {
+        RootedValue exception(cx);
+        RootedValue exceptionStack(cx);
+        if (!cx->getPendingException(&exception) ||
+            !cx->getPendingExceptionStack(&exceptionStack)) {
           rfe->exception = UndefinedValue();
           rfe->exceptionStack = NullValue();
+        } else {
+          rfe->exception = exception;
+          rfe->exceptionStack = exceptionStack;
         }
         cx->clearPendingException();
         return true;
@@ -1492,9 +1495,31 @@ void UpdateJitActivationsForMinorGC(JSRuntime* rt) {
   JSContext* cx = rt->mainContextFromOwnThread();
   for (JitActivationIterator activations(cx); !activations.done();
        ++activations) {
-    for (OnlyJSJitFrameIter iter(activations); !iter.done(); ++iter) {
-      if (iter.frame().type() == FrameType::IonJS) {
-        UpdateIonJSFrameForMinorGC(rt, iter.frame());
+    for (JitFrameIter iter(activations->asJit()); !iter.done(); ++iter) {
+      if (iter.isJSJit()) {
+        const JSJitFrameIter& jitFrame = iter.asJSJit();
+        if (jitFrame.type() == FrameType::IonJS) {
+          UpdateIonJSFrameForMinorGC(rt, jitFrame);
+        }
+      } else if (iter.isWasm()) {
+        const wasm::WasmFrameIter& frame = iter.asWasm();
+        frame.instance()->updateFrameForMovingGC(
+            frame, frame.resumePCinCurrentFrame());
+      }
+    }
+  }
+}
+
+void UpdateJitActivationsForCompactingGC(JSRuntime* rt) {
+  MOZ_ASSERT(JS::RuntimeHeapIsMajorCollecting());
+  JSContext* cx = rt->mainContextFromOwnThread();
+  for (JitActivationIterator activations(cx); !activations.done();
+       ++activations) {
+    for (JitFrameIter iter(activations->asJit()); !iter.done(); ++iter) {
+      if (iter.isWasm()) {
+        const wasm::WasmFrameIter& frame = iter.asWasm();
+        frame.instance()->updateFrameForMovingGC(
+            frame, frame.resumePCinCurrentFrame());
       }
     }
   }

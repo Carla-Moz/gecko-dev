@@ -275,7 +275,7 @@ static bool IsOffsetParent(nsIFrame* aFrame) {
   LayoutFrameType frameType = aFrame->Type();
 
   if (frameType == LayoutFrameType::TableCell ||
-      frameType == LayoutFrameType::Table) {
+      frameType == LayoutFrameType::TableWrapper) {
     // Per the IDL for Element, only td, th, and table are acceptable
     // offsetParents apart from body or positioned elements; we need to check
     // the content type as well as the frame type so we ignore anonymous tables
@@ -3418,7 +3418,7 @@ void nsGenericHTMLElement::ShowPopoverInternal(Element* aInvoker,
   nsWeakPtr originallyFocusedElement;
   if (IsAutoPopover()) {
     auto originalState = GetPopoverAttributeState();
-    RefPtr<nsINode> ancestor = GetTopmostPopoverAncestor(aInvoker);
+    RefPtr<nsINode> ancestor = GetTopmostPopoverAncestor(aInvoker, true);
     if (!ancestor) {
       ancestor = document;
     }

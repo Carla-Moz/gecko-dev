@@ -554,15 +554,7 @@ nsresult HyperTextAccessible::SetSelectionRange(int32_t aStartPos,
   NS_ENSURE_STATE(domSel);
 
   // Set up the selection.
-  for (const uint32_t idx : Reversed(IntegerRange(1u, domSel->RangeCount()))) {
-    MOZ_ASSERT(domSel->RangeCount() == idx + 1);
-    RefPtr<nsRange> range{domSel->GetRangeAt(idx)};
-    if (!range) {
-      break;  // The range count has been changed by somebody else.
-    }
-    domSel->RemoveRangeAndUnselectFramesAndNotifyListeners(*range,
-                                                           IgnoreErrors());
-  }
+  domSel->RemoveAllRanges(IgnoreErrors());
   SetSelectionBoundsAt(0, aStartPos, aEndPos);
 
   // Make sure it is visible
@@ -765,6 +757,17 @@ LayoutDeviceIntRect HyperTextAccessible::GetCaretRect(nsIWidget** aWidget) {
 
 void HyperTextAccessible::GetSelectionDOMRanges(SelectionType aSelectionType,
                                                 nsTArray<nsRange*>* aRanges) {
+  if (IsDoc() && !AsDoc()->HasLoadState(DocAccessible::eTreeConstructed)) {
+    // Rarely, a client query can be handled after a DocAccessible is created
+    // but before the initial tree is constructed, since DoInitialUpdate happens
+    // during a refresh tick. In that case, there might be a DOM selection, but
+    // we can't use it. We will crash if we try due to mContent being null, etc.
+    // This should only happen in the parent process because we should never
+    // try to push the cache in a content process before the initial tree is
+    // constructed.
+    MOZ_ASSERT(XRE_IsParentProcess(), "Query before DoInitialUpdate");
+    return;
+  }
   // Ignore selection if it is not visible.
   RefPtr<nsFrameSelection> frameSelection = FrameSelection();
   if (!frameSelection || frameSelection->GetDisplaySelection() <=

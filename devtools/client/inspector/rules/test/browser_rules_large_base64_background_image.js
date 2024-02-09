@@ -40,7 +40,6 @@ const TEST_URL =
 
 // Check that long URLs are rendered correctly in the rule view.
 add_task(async function () {
-  await pushPref("devtools.inspector.showRulesViewEnterKeyNotice", false);
   const { inspector } = await openInspectorForURL(TEST_URL);
   const view = selectRuleView(inspector);
 
@@ -66,8 +65,9 @@ add_task(async function () {
   );
   const ruleviewContainer =
     view.styleDocument.getElementById("ruleview-container");
-  ok(
-    ruleviewContainer.scrollHeight === ruleviewContainer.clientHeight,
+  Assert.strictEqual(
+    ruleviewContainer.scrollHeight,
+    ruleviewContainer.clientHeight,
     "The ruleview container does not have a scrollbar"
   );
 });

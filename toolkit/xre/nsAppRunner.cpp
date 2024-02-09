@@ -4553,7 +4553,7 @@ bool XREMain::CheckLastStartupWasCrash() {
   // the startup crash detection window.
   AutoFDClose fd;
   Unused << crashFile.inspect()->OpenNSPRFileDesc(
-      PR_WRONLY | PR_CREATE_FILE | PR_EXCL, 0666, &fd.rwget());
+      PR_WRONLY | PR_CREATE_FILE | PR_EXCL, 0666, getter_Transfers(fd));
   return !fd;
 }
 
@@ -4698,25 +4698,27 @@ int XREMain::XRE_mainStartup(bool* aExitFlag) {
     const char* display_name = nullptr;
     bool saveDisplayArg = false;
 
+    // display_name is owned by gdk.
+    display_name = gdk_get_display_arg_name();
     bool waylandEnabled = IsWaylandEnabled();
 #  ifdef MOZ_WAYLAND
-    auto* proxyEnv = getenv("MOZ_DISABLE_WAYLAND_PROXY");
-    bool disableWaylandProxy = proxyEnv && *proxyEnv;
-    if (!disableWaylandProxy && XRE_IsParentProcess() && waylandEnabled) {
+    if (!display_name) {
+      auto* proxyEnv = getenv("MOZ_DISABLE_WAYLAND_PROXY");
+      bool disableWaylandProxy = proxyEnv && *proxyEnv;
+      if (!disableWaylandProxy && XRE_IsParentProcess() && waylandEnabled) {
 #    ifdef MOZ_LOGGING
-      if (MOZ_LOG_TEST(gWidgetWaylandLog, mozilla::LogLevel::Debug)) {
-        WaylandProxy::SetVerbose(true);
-      }
+        if (MOZ_LOG_TEST(gWidgetWaylandLog, mozilla::LogLevel::Debug)) {
+          WaylandProxy::SetVerbose(true);
+        }
 #    endif
-      gWaylandProxy = WaylandProxy::Create();
-      if (gWaylandProxy) {
-        gWaylandProxy->RunThread();
+        gWaylandProxy = WaylandProxy::Create();
+        if (gWaylandProxy) {
+          gWaylandProxy->RunThread();
+        }
       }
     }
 #  endif
 
-    // display_name is owned by gdk.
-    display_name = gdk_get_display_arg_name();
     // if --display argument is given make sure it's
     // also passed to ContentChild::Init() by MOZ_GDK_DISPLAY.
     if (display_name) {
@@ -4767,6 +4769,14 @@ int XREMain::XRE_mainStartup(bool* aExitFlag) {
 #  if !defined(MOZ_WAYLAND) && defined(MOZ_X11)
     if (!GdkIsX11Display()) {
       Output(true, "X11 only build is missig X11 display!\n");
+    }
+#  endif
+#  if defined(MOZ_WAYLAND)
+    // We want to use proxy for main connection only so
+    // restore original Wayland display for next potential Wayland connections
+    // from gfx probe code and so on.
+    if (gWaylandProxy) {
+      gWaylandProxy->RestoreWaylandDisplay();
     }
 #  endif
   }
@@ -5365,10 +5375,6 @@ nsresult XREMain::XRE_mainRun() {
       }
     }
 
-#ifdef XP_MACOSX
-    InitializeMacApp();
-#endif
-
     // We'd like to initialize the JSContext *after* reading the user prefs.
     // Unfortunately that's not possible if we have to do profile migration
     // because that requires us to execute JS before reading user prefs.
@@ -5395,6 +5401,10 @@ nsresult XREMain::XRE_mainRun() {
             aKey = MOZ_APP_NAME;
             gResetOldProfile->GetName(aName);
           }
+#ifdef XP_MACOSX
+          // Necessary for migration wizard to be accessible.
+          InitializeMacApp();
+#endif
           pm->Migrate(&mDirProvider, aKey, aName);
         }
       }
@@ -5580,6 +5590,8 @@ nsresult XREMain::XRE_mainRun() {
 #endif
 
 #ifdef XP_MACOSX
+      InitializeMacApp();
+
       // we re-initialize the command-line service and do appleevents munging
       // after we are sure that we're not restarting
       cmdLine = new nsCommandLine();

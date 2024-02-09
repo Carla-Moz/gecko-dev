@@ -31,6 +31,7 @@
 #include "js/friend/WindowProxy.h"  // js::IsWindow, js::IsWindowProxy, js::ToWindowIfWindowProxy
 #include "js/friend/XrayJitInfo.h"  // js::jit::GetXrayJitInfo, JS::XrayJitInfo
 #include "js/GCAPI.h"               // JS::AutoSuppressGCAnalysis
+#include "js/Prefs.h"               // JS::Prefs
 #include "js/RegExpFlags.h"         // JS::RegExpFlags
 #include "js/ScalarType.h"          // js::Scalar::Type
 #include "js/Utility.h"             // JS::AutoEnterOOMUnsafeRegion
@@ -61,6 +62,7 @@
 #include "vm/JSFunction-inl.h"
 #include "vm/JSObject-inl.h"
 #include "vm/JSScript-inl.h"
+#include "vm/List-inl.h"
 #include "vm/NativeObject-inl.h"
 #include "vm/PlainObject-inl.h"
 #include "vm/StringObject-inl.h"
@@ -260,7 +262,8 @@ IRGenerator::IRGenerator(JSContext* cx, HandleScript script, jsbytecode* pc,
       pc_(pc),
       cacheKind_(cacheKind),
       mode_(state.mode()),
-      isFirstStub_(state.newStubIsFirstStub()) {}
+      isFirstStub_(state.newStubIsFirstStub()),
+      numOptimizedStubs_(state.numOptimizedStubs()) {}
 
 GetPropIRGenerator::GetPropIRGenerator(JSContext* cx, HandleScript script,
                                        jsbytecode* pc, ICState state,
@@ -1985,14 +1988,14 @@ void IRGenerator::emitOptimisticClassGuard(ObjOperandId objId, JSObject* obj,
     case GuardClassKind::PlainObject:
       MOZ_ASSERT(obj->is<PlainObject>());
       break;
-    case GuardClassKind::ArrayBuffer:
-      MOZ_ASSERT(obj->is<ArrayBufferObject>());
+    case GuardClassKind::FixedLengthArrayBuffer:
+      MOZ_ASSERT(obj->is<FixedLengthArrayBufferObject>());
       break;
-    case GuardClassKind::SharedArrayBuffer:
-      MOZ_ASSERT(obj->is<SharedArrayBufferObject>());
+    case GuardClassKind::FixedLengthSharedArrayBuffer:
+      MOZ_ASSERT(obj->is<FixedLengthSharedArrayBufferObject>());
       break;
-    case GuardClassKind::DataView:
-      MOZ_ASSERT(obj->is<DataViewObject>());
+    case GuardClassKind::FixedLengthDataView:
+      MOZ_ASSERT(obj->is<FixedLengthDataViewObject>());
       break;
     case GuardClassKind::Set:
       MOZ_ASSERT(obj->is<SetObject>());
@@ -2074,7 +2077,8 @@ AttachDecision GetPropIRGenerator::tryAttachObjectLength(HandleObject obj,
 AttachDecision GetPropIRGenerator::tryAttachTypedArray(HandleObject obj,
                                                        ObjOperandId objId,
                                                        HandleId id) {
-  if (!obj->is<TypedArrayObject>()) {
+  // TODO: Support resizable typed arrays. (bug 1842999)
+  if (!obj->is<FixedLengthTypedArrayObject>()) {
     return AttachDecision::NoAction;
   }
 
@@ -2116,7 +2120,7 @@ AttachDecision GetPropIRGenerator::tryAttachTypedArray(HandleObject obj,
     }
   }
 
-  auto* tarr = &obj->as<TypedArrayObject>();
+  auto* tarr = &obj->as<FixedLengthTypedArrayObject>();
 
   maybeEmitIdGuard(id);
   // Emit all the normal guards for calling this native, but specialize
@@ -2152,10 +2156,11 @@ AttachDecision GetPropIRGenerator::tryAttachTypedArray(HandleObject obj,
 AttachDecision GetPropIRGenerator::tryAttachDataView(HandleObject obj,
                                                      ObjOperandId objId,
                                                      HandleId id) {
-  if (!obj->is<DataViewObject>()) {
+  // TODO: Support resizable dataviews. (bug 1842999)
+  if (!obj->is<FixedLengthDataViewObject>()) {
     return AttachDecision::NoAction;
   }
-  auto* dv = &obj->as<DataViewObject>();
+  auto* dv = &obj->as<FixedLengthDataViewObject>();
 
   if (mode_ != ICState::Mode::Specialized) {
     return AttachDecision::NoAction;
@@ -2226,6 +2231,11 @@ AttachDecision GetPropIRGenerator::tryAttachArrayBufferMaybeShared(
     return AttachDecision::NoAction;
   }
   auto* buf = &obj->as<ArrayBufferObjectMaybeShared>();
+
+  // TODO: Support resizable buffers. (bug 1842999)
+  if (buf->isResizable()) {
+    return AttachDecision::NoAction;
+  }
 
   if (mode_ != ICState::Mode::Specialized) {
     return AttachDecision::NoAction;
@@ -3034,7 +3044,8 @@ AttachDecision GetPropIRGenerator::tryAttachSparseElement(
 
 // For Uint32Array we let the stub return an Int32 if we have not seen a
 // double, to allow better codegen in Warp while avoiding bailout loops.
-static bool ForceDoubleForUint32Array(TypedArrayObject* tarr, uint64_t index) {
+static bool ForceDoubleForUint32Array(FixedLengthTypedArrayObject* tarr,
+                                      uint64_t index) {
   MOZ_ASSERT(index < tarr->length());
 
   if (tarr->type() != Scalar::Type::Uint32) {
@@ -3050,7 +3061,8 @@ static bool ForceDoubleForUint32Array(TypedArrayObject* tarr, uint64_t index) {
 
 AttachDecision GetPropIRGenerator::tryAttachTypedArrayElement(
     HandleObject obj, ObjOperandId objId) {
-  if (!obj->is<TypedArrayObject>()) {
+  // TODO: Support resizable typed arrays. (bug 1842999)
+  if (!obj->is<FixedLengthTypedArrayObject>()) {
     return AttachDecision::NoAction;
   }
 
@@ -3058,7 +3070,7 @@ AttachDecision GetPropIRGenerator::tryAttachTypedArrayElement(
     return AttachDecision::NoAction;
   }
 
-  TypedArrayObject* tarr = &obj->as<TypedArrayObject>();
+  auto* tarr = &obj->as<FixedLengthTypedArrayObject>();
 
   bool handleOOB = false;
   int64_t indexInt64;
@@ -3811,7 +3823,7 @@ AttachDecision HasPropIRGenerator::tryAttachNamedProp(HandleObject obj,
                                                       ValOperandId keyId) {
   bool hasOwn = (cacheKind_ == CacheKind::HasOwn);
 
-  NativeObject* holder = nullptr;
+  Rooted<NativeObject*> holder(cx_);
   PropertyResult prop;
 
   if (hasOwn) {
@@ -3819,21 +3831,96 @@ AttachDecision HasPropIRGenerator::tryAttachNamedProp(HandleObject obj,
       return AttachDecision::NoAction;
     }
 
-    holder = &obj->as<NativeObject>();
+    holder.set(&obj->as<NativeObject>());
   } else {
-    if (!LookupPropertyPure(cx_, obj, key, &holder, &prop)) {
+    NativeObject* nHolder = nullptr;
+    if (!LookupPropertyPure(cx_, obj, key, &nHolder, &prop)) {
       return AttachDecision::NoAction;
     }
+    holder.set(nHolder);
   }
   if (prop.isNotFound()) {
     return AttachDecision::NoAction;
   }
-  auto* nobj = &obj->as<NativeObject>();
 
+  TRY_ATTACH(tryAttachSmallObjectVariableKey(obj, objId, key, keyId));
   TRY_ATTACH(tryAttachMegamorphic(objId, keyId));
-  TRY_ATTACH(tryAttachNative(nobj, objId, key, keyId, prop, holder));
+  TRY_ATTACH(tryAttachNative(&obj->as<NativeObject>(), objId, key, keyId, prop,
+                             holder.get()));
 
   return AttachDecision::NoAction;
+}
+
+AttachDecision HasPropIRGenerator::tryAttachSmallObjectVariableKey(
+    HandleObject obj, ObjOperandId objId, jsid key, ValOperandId keyId) {
+  MOZ_ASSERT(obj->is<NativeObject>());
+
+  if (cacheKind_ != CacheKind::HasOwn) {
+    return AttachDecision::NoAction;
+  }
+
+  if (mode_ != ICState::Mode::Megamorphic) {
+    return AttachDecision::NoAction;
+  }
+
+  if (numOptimizedStubs_ != 0) {
+    return AttachDecision::NoAction;
+  }
+
+  if (!key.isString()) {
+    return AttachDecision::NoAction;
+  }
+
+  if (!obj->as<NativeObject>().hasEmptyElements()) {
+    return AttachDecision::NoAction;
+  }
+
+  if (obj->getClass()->getResolve()) {
+    return AttachDecision::NoAction;
+  }
+
+  if (!obj->shape()->isShared()) {
+    return AttachDecision::NoAction;
+  }
+
+  static constexpr size_t SMALL_OBJECT_SIZE = 5;
+
+  if (obj->shape()->asShared().slotSpan() > SMALL_OBJECT_SIZE) {
+    return AttachDecision::NoAction;
+  }
+
+  Rooted<ListObject*> keyListObj(cx_, ListObject::create(cx_));
+  if (!keyListObj) {
+    cx_->recoverFromOutOfMemory();
+    return AttachDecision::NoAction;
+  }
+
+  for (SharedShapePropertyIter<CanGC> iter(cx_, &obj->shape()->asShared());
+       !iter.done(); iter++) {
+    if (!iter->key().isAtom()) {
+      return AttachDecision::NoAction;
+    }
+
+    if (keyListObj->length() == SMALL_OBJECT_SIZE) {
+      return AttachDecision::NoAction;
+    }
+
+    RootedValue key(cx_, StringValue(iter->key().toAtom()));
+    if (!keyListObj->append(cx_, key)) {
+      cx_->recoverFromOutOfMemory();
+      return AttachDecision::NoAction;
+    }
+  }
+
+  writer.guardShape(objId, obj->shape());
+  writer.guardNoDenseElements(objId);
+  StringOperandId keyStrId = writer.guardToString(keyId);
+  StringOperandId keyAtomId = writer.stringToAtom(keyStrId);
+  writer.smallObjectVariableKeyHasOwnResult(keyAtomId, keyListObj,
+                                            obj->shape());
+  writer.returnFromIC();
+  trackAttached("HasProp.SmallObjectVariableKey");
+  return AttachDecision::Attach;
 }
 
 AttachDecision HasPropIRGenerator::tryAttachMegamorphic(ObjOperandId objId,
@@ -3873,7 +3960,8 @@ AttachDecision HasPropIRGenerator::tryAttachNative(NativeObject* obj,
 AttachDecision HasPropIRGenerator::tryAttachTypedArray(HandleObject obj,
                                                        ObjOperandId objId,
                                                        ValOperandId keyId) {
-  if (!obj->is<TypedArrayObject>()) {
+  // TODO: Support resizable typed arrays. (bug 1842999)
+  if (!obj->is<FixedLengthTypedArrayObject>()) {
     return AttachDecision::NoAction;
   }
 
@@ -3882,7 +3970,7 @@ AttachDecision HasPropIRGenerator::tryAttachTypedArray(HandleObject obj,
     return AttachDecision::NoAction;
   }
 
-  writer.guardIsTypedArray(objId);
+  writer.guardIsFixedLengthTypedArray(objId);
   IntPtrOperandId intPtrIndexId =
       guardToIntPtrIndex(idVal_, keyId, /* supportOOB = */ true);
   writer.loadTypedArrayElementExistsResult(objId, intPtrIndexId);
@@ -3927,10 +4015,11 @@ AttachDecision HasPropIRGenerator::tryAttachDoesNotExist(HandleObject obj,
       return AttachDecision::NoAction;
     }
   }
-  auto* nobj = &obj->as<NativeObject>();
 
+  TRY_ATTACH(tryAttachSmallObjectVariableKey(obj, objId, key, keyId));
   TRY_ATTACH(tryAttachMegamorphic(objId, keyId));
-  TRY_ATTACH(tryAttachSlotDoesNotExist(nobj, objId, key, keyId));
+  TRY_ATTACH(
+      tryAttachSlotDoesNotExist(&obj->as<NativeObject>(), objId, key, keyId));
 
   return AttachDecision::NoAction;
 }
@@ -4296,25 +4385,82 @@ AttachDecision SetPropIRGenerator::tryAttachNativeSetSlot(HandleObject obj,
   return AttachDecision::Attach;
 }
 
-OperandId IRGenerator::emitNumericGuard(ValOperandId valId, Scalar::Type type) {
+static bool ValueCanConvertToNumeric(Scalar::Type type, const Value& val) {
+  if (Scalar::isBigIntType(type)) {
+    return val.isBigInt();
+  }
+  return val.isNumber() || val.isNullOrUndefined() || val.isBoolean() ||
+         val.isString();
+}
+
+OperandId IRGenerator::emitNumericGuard(ValOperandId valId, const Value& v,
+                                        Scalar::Type type) {
+  MOZ_ASSERT(ValueCanConvertToNumeric(type, v));
   switch (type) {
     case Scalar::Int8:
     case Scalar::Uint8:
     case Scalar::Int16:
     case Scalar::Uint16:
     case Scalar::Int32:
-    case Scalar::Uint32:
-      return writer.guardToInt32ModUint32(valId);
+    case Scalar::Uint32: {
+      if (v.isNumber()) {
+        return writer.guardToInt32ModUint32(valId);
+      }
+      if (v.isNullOrUndefined()) {
+        writer.guardIsNullOrUndefined(valId);
+        return writer.loadInt32Constant(0);
+      }
+      if (v.isBoolean()) {
+        return writer.guardBooleanToInt32(valId);
+      }
+      MOZ_ASSERT(v.isString());
+      StringOperandId strId = writer.guardToString(valId);
+      NumberOperandId numId = writer.guardStringToNumber(strId);
+      return writer.truncateDoubleToUInt32(numId);
+    }
 
     case Scalar::Float32:
-    case Scalar::Float64:
-      return writer.guardIsNumber(valId);
+    case Scalar::Float64: {
+      if (v.isNumber()) {
+        return writer.guardIsNumber(valId);
+      }
+      if (v.isNull()) {
+        writer.guardIsNull(valId);
+        return writer.loadDoubleConstant(0.0);
+      }
+      if (v.isUndefined()) {
+        writer.guardIsUndefined(valId);
+        return writer.loadDoubleConstant(JS::GenericNaN());
+      }
+      if (v.isBoolean()) {
+        BooleanOperandId boolId = writer.guardToBoolean(valId);
+        return writer.booleanToNumber(boolId);
+      }
+      MOZ_ASSERT(v.isString());
+      StringOperandId strId = writer.guardToString(valId);
+      return writer.guardStringToNumber(strId);
+    }
 
-    case Scalar::Uint8Clamped:
-      return writer.guardToUint8Clamped(valId);
+    case Scalar::Uint8Clamped: {
+      if (v.isNumber()) {
+        return writer.guardToUint8Clamped(valId);
+      }
+      if (v.isNullOrUndefined()) {
+        writer.guardIsNullOrUndefined(valId);
+        return writer.loadInt32Constant(0);
+      }
+      if (v.isBoolean()) {
+        return writer.guardBooleanToInt32(valId);
+      }
+      MOZ_ASSERT(v.isString());
+      StringOperandId strId = writer.guardToString(valId);
+      NumberOperandId numId = writer.guardStringToNumber(strId);
+      return writer.doubleToUint8Clamped(numId);
+    }
 
     case Scalar::BigInt64:
     case Scalar::BigUint64:
+      MOZ_ASSERT(v.isBigInt());
       return writer.guardToBigInt(valId);
 
     case Scalar::MaxTypedArrayViewType:
@@ -4323,13 +4469,6 @@ OperandId IRGenerator::emitNumericGuard(ValOperandId valId, Scalar::Type type) {
       break;
   }
   MOZ_CRASH("Unsupported TypedArray type");
-}
-
-static bool ValueIsNumeric(Scalar::Type type, const Value& val) {
-  if (Scalar::isBigIntType(type)) {
-    return val.isBigInt();
-  }
-  return val.isNumber();
 }
 
 void SetPropIRGenerator::trackAttached(const char* name) {
@@ -4801,18 +4940,19 @@ AttachDecision SetPropIRGenerator::tryAttachAddOrUpdateSparseElement(
 
 AttachDecision SetPropIRGenerator::tryAttachSetTypedArrayElement(
     HandleObject obj, ObjOperandId objId, ValOperandId rhsId) {
-  if (!obj->is<TypedArrayObject>()) {
+  // TODO: Support resizable typed arrays. (bug 1842999)
+  if (!obj->is<FixedLengthTypedArrayObject>()) {
     return AttachDecision::NoAction;
   }
   if (!idVal_.isNumber()) {
     return AttachDecision::NoAction;
   }
 
-  TypedArrayObject* tarr = &obj->as<TypedArrayObject>();
+  auto* tarr = &obj->as<FixedLengthTypedArrayObject>();
   Scalar::Type elementType = tarr->type();
 
   // Don't attach if the input type doesn't match the guard added below.
-  if (!ValueIsNumeric(elementType, rhsVal_)) {
+  if (!ValueCanConvertToNumeric(elementType, rhsVal_)) {
     return AttachDecision::NoAction;
   }
 
@@ -4835,7 +4975,7 @@ AttachDecision SetPropIRGenerator::tryAttachSetTypedArrayElement(
 
   writer.guardShapeForClass(objId, tarr->shape());
 
-  OperandId rhsValId = emitNumericGuard(rhsId, elementType);
+  OperandId rhsValId = emitNumericGuard(rhsId, rhsVal_, elementType);
 
   ValOperandId keyId = setElemKeyValueId();
   IntPtrOperandId indexId = guardToIntPtrIndex(idVal_, keyId, handleOOB);
@@ -6330,7 +6470,9 @@ AttachDecision InlinableNativeIRGenerator::tryAttachArrayIsArray() {
 AttachDecision InlinableNativeIRGenerator::tryAttachDataViewGet(
     Scalar::Type type) {
   // Ensure |this| is a DataViewObject.
-  if (!thisval_.isObject() || !thisval_.toObject().is<DataViewObject>()) {
+  // TODO: Support resizable dataviews. (bug 1842999)
+  if (!thisval_.isObject() ||
+      !thisval_.toObject().is<FixedLengthDataViewObject>()) {
     return AttachDecision::NoAction;
   }
 
@@ -6346,7 +6488,7 @@ AttachDecision InlinableNativeIRGenerator::tryAttachDataViewGet(
     return AttachDecision::NoAction;
   }
 
-  DataViewObject* dv = &thisval_.toObject().as<DataViewObject>();
+  auto* dv = &thisval_.toObject().as<FixedLengthDataViewObject>();
 
   // Bounds check the offset.
   if (offsetInt64 < 0 ||
@@ -6374,7 +6516,7 @@ AttachDecision InlinableNativeIRGenerator::tryAttachDataViewGet(
       writer.loadArgumentFixedSlot(ArgumentKind::This, argc_);
   ObjOperandId objId = writer.guardToObject(thisValId);
   emitOptimisticClassGuard(objId, &thisval_.toObject(),
-                           GuardClassKind::DataView);
+                           GuardClassKind::FixedLengthDataView);
 
   // Convert offset to intPtr.
   ValOperandId offsetId =
@@ -6402,7 +6544,9 @@ AttachDecision InlinableNativeIRGenerator::tryAttachDataViewGet(
 AttachDecision InlinableNativeIRGenerator::tryAttachDataViewSet(
     Scalar::Type type) {
   // Ensure |this| is a DataViewObject.
-  if (!thisval_.isObject() || !thisval_.toObject().is<DataViewObject>()) {
+  // TODO: Support resizable dataviews. (bug 1842999)
+  if (!thisval_.isObject() ||
+      !thisval_.toObject().is<FixedLengthDataViewObject>()) {
     return AttachDecision::NoAction;
   }
 
@@ -6414,14 +6558,14 @@ AttachDecision InlinableNativeIRGenerator::tryAttachDataViewSet(
   if (!ValueIsInt64Index(args_[0], &offsetInt64)) {
     return AttachDecision::NoAction;
   }
-  if (!ValueIsNumeric(type, args_[1])) {
+  if (!ValueCanConvertToNumeric(type, args_[1])) {
     return AttachDecision::NoAction;
   }
   if (argc_ > 2 && !args_[2].isBoolean()) {
     return AttachDecision::NoAction;
   }
 
-  DataViewObject* dv = &thisval_.toObject().as<DataViewObject>();
+  auto* dv = &thisval_.toObject().as<FixedLengthDataViewObject>();
 
   // Bounds check the offset.
   if (offsetInt64 < 0 ||
@@ -6440,7 +6584,7 @@ AttachDecision InlinableNativeIRGenerator::tryAttachDataViewSet(
       writer.loadArgumentFixedSlot(ArgumentKind::This, argc_);
   ObjOperandId objId = writer.guardToObject(thisValId);
   emitOptimisticClassGuard(objId, &thisval_.toObject(),
-                           GuardClassKind::DataView);
+                           GuardClassKind::FixedLengthDataView);
 
   // Convert offset to intPtr.
   ValOperandId offsetId =
@@ -6451,7 +6595,7 @@ AttachDecision InlinableNativeIRGenerator::tryAttachDataViewSet(
   // Convert value to number or BigInt.
   ValOperandId valueId =
       writer.loadArgumentFixedSlot(ArgumentKind::Arg1, argc_);
-  OperandId numericValueId = emitNumericGuard(valueId, type);
+  OperandId numericValueId = emitNumericGuard(valueId, args_[1], type);
 
   BooleanOperandId boolLittleEndianId;
   if (argc_ > 2) {
@@ -6803,6 +6947,21 @@ AttachDecision InlinableNativeIRGenerator::tryAttachGuardToClass(
 
   trackAttached("GuardToClass");
   return AttachDecision::Attach;
+}
+
+AttachDecision InlinableNativeIRGenerator::tryAttachGuardToArrayBuffer() {
+  // TODO: Support resizable ArrayBuffers (bug 1842999), for now simply
+  // pass through to tryAttachGuardToClass which guards on
+  // FixedLengthArrayBufferObject.
+  return tryAttachGuardToClass(InlinableNative::IntrinsicGuardToArrayBuffer);
+}
+
+AttachDecision InlinableNativeIRGenerator::tryAttachGuardToSharedArrayBuffer() {
+  // TODO: Support resizable SharedArrayBuffers (bug 1842999), for now simply
+  // pass through to tryAttachGuardToClass which guards on
+  // FixedLengthSharedArrayBufferObject.
+  return tryAttachGuardToClass(
+      InlinableNative::IntrinsicGuardToSharedArrayBuffer);
 }
 
 AttachDecision InlinableNativeIRGenerator::tryAttachHasClass(
@@ -8765,7 +8924,7 @@ AttachDecision InlinableNativeIRGenerator::tryAttachReflectGetPrototypeOf() {
   return AttachDecision::Attach;
 }
 
-static bool AtomicsMeetsPreconditions(TypedArrayObject* typedArray,
+static bool AtomicsMeetsPreconditions(FixedLengthTypedArrayObject* typedArray,
                                       const Value& index) {
   switch (typedArray->type()) {
     case Scalar::Int8:
@@ -8812,24 +8971,26 @@ AttachDecision InlinableNativeIRGenerator::tryAttachAtomicsCompareExchange() {
     return AttachDecision::NoAction;
   }
 
+  // TODO: Support resizable typed arrays. (bug 1842999)
   // Arguments: typedArray, index (number), expected, replacement.
-  if (!args_[0].isObject() || !args_[0].toObject().is<TypedArrayObject>()) {
+  if (!args_[0].isObject() ||
+      !args_[0].toObject().is<FixedLengthTypedArrayObject>()) {
     return AttachDecision::NoAction;
   }
   if (!args_[1].isNumber()) {
     return AttachDecision::NoAction;
   }
 
-  auto* typedArray = &args_[0].toObject().as<TypedArrayObject>();
+  auto* typedArray = &args_[0].toObject().as<FixedLengthTypedArrayObject>();
   if (!AtomicsMeetsPreconditions(typedArray, args_[1])) {
     return AttachDecision::NoAction;
   }
 
   Scalar::Type elementType = typedArray->type();
-  if (!ValueIsNumeric(elementType, args_[2])) {
+  if (!ValueCanConvertToNumeric(elementType, args_[2])) {
     return AttachDecision::NoAction;
   }
-  if (!ValueIsNumeric(elementType, args_[3])) {
+  if (!ValueCanConvertToNumeric(elementType, args_[3])) {
     return AttachDecision::NoAction;
   }
 
@@ -8852,12 +9013,14 @@ AttachDecision InlinableNativeIRGenerator::tryAttachAtomicsCompareExchange() {
   // Convert expected value to int32/BigInt.
   ValOperandId expectedId =
       writer.loadArgumentFixedSlot(ArgumentKind::Arg2, argc_);
-  OperandId numericExpectedId = emitNumericGuard(expectedId, elementType);
+  OperandId numericExpectedId =
+      emitNumericGuard(expectedId, args_[2], elementType);
 
   // Convert replacement value to int32/BigInt.
   ValOperandId replacementId =
       writer.loadArgumentFixedSlot(ArgumentKind::Arg3, argc_);
-  OperandId numericReplacementId = emitNumericGuard(replacementId, elementType);
+  OperandId numericReplacementId =
+      emitNumericGuard(replacementId, args_[3], elementType);
 
   writer.atomicsCompareExchangeResult(objId, intPtrIndexId, numericExpectedId,
                                       numericReplacementId, typedArray->type());
@@ -8877,19 +9040,21 @@ bool InlinableNativeIRGenerator::canAttachAtomicsReadWriteModify() {
     return false;
   }
 
+  // TODO: Support resizable typed arrays. (bug 1842999)
   // Arguments: typedArray, index (number), value.
-  if (!args_[0].isObject() || !args_[0].toObject().is<TypedArrayObject>()) {
+  if (!args_[0].isObject() ||
+      !args_[0].toObject().is<FixedLengthTypedArrayObject>()) {
     return false;
   }
   if (!args_[1].isNumber()) {
     return false;
   }
 
-  auto* typedArray = &args_[0].toObject().as<TypedArrayObject>();
+  auto* typedArray = &args_[0].toObject().as<FixedLengthTypedArrayObject>();
   if (!AtomicsMeetsPreconditions(typedArray, args_[1])) {
     return false;
   }
-  if (!ValueIsNumeric(typedArray->type(), args_[2])) {
+  if (!ValueCanConvertToNumeric(typedArray->type(), args_[2])) {
     return false;
   }
   return true;
@@ -8899,7 +9064,7 @@ InlinableNativeIRGenerator::AtomicsReadWriteModifyOperands
 InlinableNativeIRGenerator::emitAtomicsReadWriteModifyOperands() {
   MOZ_ASSERT(canAttachAtomicsReadWriteModify());
 
-  auto* typedArray = &args_[0].toObject().as<TypedArrayObject>();
+  auto* typedArray = &args_[0].toObject().as<FixedLengthTypedArrayObject>();
 
   // Initialize the input operand.
   initializeInputOperand();
@@ -8920,7 +9085,8 @@ InlinableNativeIRGenerator::emitAtomicsReadWriteModifyOperands() {
   // Convert value to int32/BigInt.
   ValOperandId valueId =
       writer.loadArgumentFixedSlot(ArgumentKind::Arg2, argc_);
-  OperandId numericValueId = emitNumericGuard(valueId, typedArray->type());
+  OperandId numericValueId =
+      emitNumericGuard(valueId, args_[2], typedArray->type());
 
   return {objId, intPtrIndexId, numericValueId};
 }
@@ -8933,7 +9099,7 @@ AttachDecision InlinableNativeIRGenerator::tryAttachAtomicsExchange() {
   auto [objId, intPtrIndexId, numericValueId] =
       emitAtomicsReadWriteModifyOperands();
 
-  auto* typedArray = &args_[0].toObject().as<TypedArrayObject>();
+  auto* typedArray = &args_[0].toObject().as<FixedLengthTypedArrayObject>();
 
   writer.atomicsExchangeResult(objId, intPtrIndexId, numericValueId,
                                typedArray->type());
@@ -8951,7 +9117,7 @@ AttachDecision InlinableNativeIRGenerator::tryAttachAtomicsAdd() {
   auto [objId, intPtrIndexId, numericValueId] =
       emitAtomicsReadWriteModifyOperands();
 
-  auto* typedArray = &args_[0].toObject().as<TypedArrayObject>();
+  auto* typedArray = &args_[0].toObject().as<FixedLengthTypedArrayObject>();
   bool forEffect = ignoresResult();
 
   writer.atomicsAddResult(objId, intPtrIndexId, numericValueId,
@@ -8970,7 +9136,7 @@ AttachDecision InlinableNativeIRGenerator::tryAttachAtomicsSub() {
   auto [objId, intPtrIndexId, numericValueId] =
       emitAtomicsReadWriteModifyOperands();
 
-  auto* typedArray = &args_[0].toObject().as<TypedArrayObject>();
+  auto* typedArray = &args_[0].toObject().as<FixedLengthTypedArrayObject>();
   bool forEffect = ignoresResult();
 
   writer.atomicsSubResult(objId, intPtrIndexId, numericValueId,
@@ -8989,7 +9155,7 @@ AttachDecision InlinableNativeIRGenerator::tryAttachAtomicsAnd() {
   auto [objId, intPtrIndexId, numericValueId] =
       emitAtomicsReadWriteModifyOperands();
 
-  auto* typedArray = &args_[0].toObject().as<TypedArrayObject>();
+  auto* typedArray = &args_[0].toObject().as<FixedLengthTypedArrayObject>();
   bool forEffect = ignoresResult();
 
   writer.atomicsAndResult(objId, intPtrIndexId, numericValueId,
@@ -9008,7 +9174,7 @@ AttachDecision InlinableNativeIRGenerator::tryAttachAtomicsOr() {
   auto [objId, intPtrIndexId, numericValueId] =
       emitAtomicsReadWriteModifyOperands();
 
-  auto* typedArray = &args_[0].toObject().as<TypedArrayObject>();
+  auto* typedArray = &args_[0].toObject().as<FixedLengthTypedArrayObject>();
   bool forEffect = ignoresResult();
 
   writer.atomicsOrResult(objId, intPtrIndexId, numericValueId,
@@ -9027,7 +9193,7 @@ AttachDecision InlinableNativeIRGenerator::tryAttachAtomicsXor() {
   auto [objId, intPtrIndexId, numericValueId] =
       emitAtomicsReadWriteModifyOperands();
 
-  auto* typedArray = &args_[0].toObject().as<TypedArrayObject>();
+  auto* typedArray = &args_[0].toObject().as<FixedLengthTypedArrayObject>();
   bool forEffect = ignoresResult();
 
   writer.atomicsXorResult(objId, intPtrIndexId, numericValueId,
@@ -9048,15 +9214,17 @@ AttachDecision InlinableNativeIRGenerator::tryAttachAtomicsLoad() {
     return AttachDecision::NoAction;
   }
 
+  // TODO: Support resizable typed arrays. (bug 1842999)
   // Arguments: typedArray, index (number).
-  if (!args_[0].isObject() || !args_[0].toObject().is<TypedArrayObject>()) {
+  if (!args_[0].isObject() ||
+      !args_[0].toObject().is<FixedLengthTypedArrayObject>()) {
     return AttachDecision::NoAction;
   }
   if (!args_[1].isNumber()) {
     return AttachDecision::NoAction;
   }
 
-  auto* typedArray = &args_[0].toObject().as<TypedArrayObject>();
+  auto* typedArray = &args_[0].toObject().as<FixedLengthTypedArrayObject>();
   if (!AtomicsMeetsPreconditions(typedArray, args_[1])) {
     return AttachDecision::NoAction;
   }
@@ -9103,21 +9271,23 @@ AttachDecision InlinableNativeIRGenerator::tryAttachAtomicsStore() {
   // obviously unused or if the argument is already Int32 and thus requires no
   // conversion.
 
+  // TODO: Support resizable typed arrays. (bug 1842999)
   // Arguments: typedArray, index (number), value.
-  if (!args_[0].isObject() || !args_[0].toObject().is<TypedArrayObject>()) {
+  if (!args_[0].isObject() ||
+      !args_[0].toObject().is<FixedLengthTypedArrayObject>()) {
     return AttachDecision::NoAction;
   }
   if (!args_[1].isNumber()) {
     return AttachDecision::NoAction;
   }
 
-  auto* typedArray = &args_[0].toObject().as<TypedArrayObject>();
+  auto* typedArray = &args_[0].toObject().as<FixedLengthTypedArrayObject>();
   if (!AtomicsMeetsPreconditions(typedArray, args_[1])) {
     return AttachDecision::NoAction;
   }
 
   Scalar::Type elementType = typedArray->type();
-  if (!ValueIsNumeric(elementType, args_[2])) {
+  if (!ValueCanConvertToNumeric(elementType, args_[2])) {
     return AttachDecision::NoAction;
   }
 
@@ -9150,7 +9320,7 @@ AttachDecision InlinableNativeIRGenerator::tryAttachAtomicsStore() {
   if (guardIsInt32) {
     numericValueId = writer.guardToInt32(valueId);
   } else {
-    numericValueId = emitNumericGuard(valueId, elementType);
+    numericValueId = emitNumericGuard(valueId, args_[2], elementType);
   }
 
   writer.atomicsStoreResult(objId, intPtrIndexId, numericValueId,
@@ -10012,7 +10182,12 @@ AttachDecision InlinableNativeIRGenerator::tryAttachTypedArrayByteOffset() {
   MOZ_ASSERT(args_[0].isObject());
   MOZ_ASSERT(args_[0].toObject().is<TypedArrayObject>());
 
-  auto* tarr = &args_[0].toObject().as<TypedArrayObject>();
+  // TODO: Support resizable typed arrays. (bug 1842999)
+  if (!args_[0].toObject().is<FixedLengthTypedArrayObject>()) {
+    return AttachDecision::NoAction;
+  }
+
+  auto* tarr = &args_[0].toObject().as<FixedLengthTypedArrayObject>();
 
   // Initialize the input operand.
   initializeInputOperand();
@@ -10021,6 +10196,7 @@ AttachDecision InlinableNativeIRGenerator::tryAttachTypedArrayByteOffset() {
 
   ValOperandId argId = writer.loadArgumentFixedSlot(ArgumentKind::Arg0, argc_);
   ObjOperandId objArgId = writer.guardToObject(argId);
+  writer.guardIsFixedLengthTypedArray(objArgId);
   if (tarr->byteOffset() <= INT32_MAX) {
     writer.arrayBufferViewByteOffsetInt32Result(objArgId);
   } else {
@@ -10066,7 +10242,12 @@ AttachDecision InlinableNativeIRGenerator::tryAttachTypedArrayLength(
 
   MOZ_ASSERT(args_[0].toObject().is<TypedArrayObject>());
 
-  auto* tarr = &args_[0].toObject().as<TypedArrayObject>();
+  // TODO: Support resizable typed arrays. (bug 1842999)
+  if (!args_[0].toObject().is<FixedLengthTypedArrayObject>()) {
+    return AttachDecision::NoAction;
+  }
+
+  auto* tarr = &args_[0].toObject().as<FixedLengthTypedArrayObject>();
 
   // Initialize the input operand.
   initializeInputOperand();
@@ -10080,6 +10261,7 @@ AttachDecision InlinableNativeIRGenerator::tryAttachTypedArrayLength(
     writer.guardIsNotProxy(objArgId);
   }
 
+  writer.guardIsFixedLengthTypedArray(objArgId);
   if (tarr->length() <= INT32_MAX) {
     writer.loadArrayBufferViewLengthInt32Result(objArgId);
   } else {
@@ -10089,6 +10271,13 @@ AttachDecision InlinableNativeIRGenerator::tryAttachTypedArrayLength(
 
   trackAttached("IntrinsicTypedArrayLength");
   return AttachDecision::Attach;
+}
+
+AttachDecision
+InlinableNativeIRGenerator::tryAttachTypedArrayLengthZeroOnOutOfBounds() {
+  // We don't yet inline resizable buffers, so this operation is equivalent to
+  // the inline code path for tryAttachTypedArrayLength().
+  return tryAttachTypedArrayLength(/* isPossiblyWrapped = */ false);
 }
 
 AttachDecision InlinableNativeIRGenerator::tryAttachArrayBufferByteLength(
@@ -10106,6 +10295,11 @@ AttachDecision InlinableNativeIRGenerator::tryAttachArrayBufferByteLength(
   MOZ_ASSERT(args_[0].toObject().is<ArrayBufferObject>());
 
   auto* buffer = &args_[0].toObject().as<ArrayBufferObject>();
+
+  // TODO: Support resizable buffers. (bug 1842999)
+  if (buffer->isResizable()) {
+    return AttachDecision::NoAction;
+  }
 
   // Initialize the input operand.
   initializeInputOperand();
@@ -10468,6 +10662,14 @@ AttachDecision InlinableNativeIRGenerator::tryAttachTypedArrayConstructor() {
   if (args_[0].isObject() && args_[0].toObject().is<ProxyObject>()) {
     return AttachDecision::NoAction;
   }
+  if (args_[0].isObject() &&
+      args_[0].toObject().is<ResizableArrayBufferObject>()) {
+    return AttachDecision::NoAction;
+  }
+  if (args_[0].isObject() &&
+      args_[0].toObject().is<GrowableSharedArrayBufferObject>()) {
+    return AttachDecision::NoAction;
+  }
 
 #ifdef JS_CODEGEN_X86
   // Unfortunately NewTypedArrayFromArrayBufferResult needs more registers than
@@ -10510,11 +10712,11 @@ AttachDecision InlinableNativeIRGenerator::tryAttachTypedArrayConstructor() {
 
     if (obj->is<ArrayBufferObjectMaybeShared>()) {
       // From ArrayBuffer.
-      if (obj->is<ArrayBufferObject>()) {
-        writer.guardClass(objId, GuardClassKind::ArrayBuffer);
+      if (obj->is<FixedLengthArrayBufferObject>()) {
+        writer.guardClass(objId, GuardClassKind::FixedLengthArrayBuffer);
       } else {
-        MOZ_ASSERT(obj->is<SharedArrayBufferObject>());
-        writer.guardClass(objId, GuardClassKind::SharedArrayBuffer);
+        MOZ_ASSERT(obj->is<FixedLengthSharedArrayBufferObject>());
+        writer.guardClass(objId, GuardClassKind::FixedLengthSharedArrayBuffer);
       }
       ValOperandId byteOffsetId;
       if (argc_ > 1) {
@@ -11416,7 +11618,7 @@ AttachDecision InlinableNativeIRGenerator::tryAttachStub() {
 
     // ArrayBuffer intrinsics.
     case InlinableNative::IntrinsicGuardToArrayBuffer:
-      return tryAttachGuardToClass(native);
+      return tryAttachGuardToArrayBuffer();
     case InlinableNative::IntrinsicArrayBufferByteLength:
       return tryAttachArrayBufferByteLength(/* isPossiblyWrapped = */ false);
     case InlinableNative::IntrinsicPossiblyWrappedArrayBufferByteLength:
@@ -11424,7 +11626,7 @@ AttachDecision InlinableNativeIRGenerator::tryAttachStub() {
 
     // SharedArrayBuffer intrinsics.
     case InlinableNative::IntrinsicGuardToSharedArrayBuffer:
-      return tryAttachGuardToClass(native);
+      return tryAttachGuardToSharedArrayBuffer();
 
     // TypedArray intrinsics.
     case InlinableNative::TypedArrayConstructor:
@@ -11441,6 +11643,8 @@ AttachDecision InlinableNativeIRGenerator::tryAttachStub() {
       return tryAttachTypedArrayElementSize();
     case InlinableNative::IntrinsicTypedArrayLength:
       return tryAttachTypedArrayLength(/* isPossiblyWrapped = */ false);
+    case InlinableNative::IntrinsicTypedArrayLengthZeroOnOutOfBounds:
+      return tryAttachTypedArrayLengthZeroOnOutOfBounds();
     case InlinableNative::IntrinsicPossiblyWrappedTypedArrayLength:
       return tryAttachTypedArrayLength(/* isPossiblyWrapped = */ true);
 
@@ -13952,7 +14156,7 @@ AttachDecision OptimizeGetIteratorIRGenerator::tryAttachArray() {
   //
   // This assignment pops the fuse, however we can still use the dynamic check
   // version of this IC, as the actual -value- is still correct.
-  bool useDynamicCheck = !intact || !cx_->options().enableDestructuringFuse();
+  bool useDynamicCheck = !intact || !JS::Prefs::destructuring_fuse();
   if (useDynamicCheck) {
     // Guard on Array.prototype[@@iterator].
     ObjOperandId arrProtoId = writer.loadObject(arrProto);

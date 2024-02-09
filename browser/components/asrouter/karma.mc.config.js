@@ -72,16 +72,46 @@ module.exports = function (config) {
       // This will make karma fail if coverage reporting is less than the minimums here
       thresholds: !isTDD && {
         each: {
-          statements: 100,
-          lines: 100,
-          functions: 100,
+          statements: 80,
+          lines: 80,
+          functions: 80,
           branches: 66,
           overrides: {
+            "content-src/asrouter-utils.js": {
+              statements: 66,
+              lines: 66,
+              functions: 76,
+              branches: 33,
+            },
             "content-src/components/ASRouterAdmin/*.jsx": {
               statements: 0,
               lines: 0,
               functions: 0,
               branches: 0,
+            },
+            "content-src/components/ModalOverlay/ModalOverlay.jsx": {
+              statements: 92,
+              lines: 92,
+              functions: 100,
+              branches: 66,
+            },
+            "modules/ASRouter.jsm": {
+              statements: 75,
+              lines: 75,
+              functions: 64,
+              branches: 66,
+            },
+            "modules/ASRouterParentProcessMessageHandler.jsm": {
+              statements: 98,
+              lines: 98,
+              functions: 100,
+              branches: 88,
+            },
+            "modules/ToolbarPanelHub.jsm": {
+              statements: 88,
+              lines: 88,
+              functions: 94,
+              branches: 84,
             },
           },
         },
@@ -98,7 +128,7 @@ module.exports = function (config) {
           inject: path.join(__dirname, "../newtab/loaders/inject-loader"),
         },
       },
-      // This resolve config allows us to import with paths relative to the root directory, e.g. "lib/ActivityStream.jsm"
+      // This resolve config allows us to import with paths relative to the root directory
       resolve: {
         extensions: [".js", ".jsx"],
         modules: [
@@ -147,7 +177,13 @@ module.exports = function (config) {
                     [
                       "../newtab/tools/babel-jsm-to-commonjs.js",
                       {
-                        basePath: PATHS.resourcePathRegEx,
+                        basePaths: [
+                          // We still need to do this rewriting, as there are
+                          // still modules being loaded from
+                          // resource://activity-stream. See bug 1877199.
+                          [PATHS.resourcePathRegEx, ""],
+                          [new RegExp("^resource:///modules/asrouter/"), "./"],
+                        ],
                         removeOtherImports: true,
                         replace: true,
                       },
@@ -180,7 +216,15 @@ module.exports = function (config) {
             loader: "@jsdevtools/coverage-istanbul-loader",
             options: { esModules: true },
             include: [path.resolve("content-src"), path.resolve("modules")],
-            exclude: [path.resolve("tests"), path.resolve("../newtab")],
+            exclude: [
+              path.resolve("tests"),
+              path.resolve("../newtab"),
+              path.resolve("modules/ASRouterTargeting.jsm"),
+              path.resolve("modules/ASRouterTriggerListeners.jsm"),
+              path.resolve("modules/CFRMessageProvider.sys.mjs"),
+              path.resolve("modules/CFRPageActions.jsm"),
+              path.resolve("modules/OnboardingMessageProvider.jsm"),
+            ],
           },
         ],
       },

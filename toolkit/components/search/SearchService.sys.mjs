@@ -45,6 +45,15 @@ XPCOMUtils.defineLazyServiceGetter(
   "nsIUpdateTimerManager"
 );
 
+/**
+ * A reference to the handler for the default override allowlist.
+ *
+ * @type {SearchDefaultOverrideAllowlistHandler}
+ */
+ChromeUtils.defineLazyGetter(lazy, "defaultOverrideAllowlist", () => {
+  return new SearchDefaultOverrideAllowlistHandler();
+});
+
 // Exported to tests for not splitting ids when building webextension ids.
 export const NON_SPLIT_ENGINE_IDS = [
   "allegro-pl",
@@ -112,6 +121,8 @@ const REASON_CHANGE_MAP = new Map([
   [Ci.nsISearchService.CHANGE_REASON_ENTERPRISE, "enterprise"],
   // The UI Tour caused a change of default.
   [Ci.nsISearchService.CHANGE_REASON_UITOUR, "uitour"],
+  // The engine updated.
+  [Ci.nsISearchService.CHANGE_REASON_ENGINE_UPDATE, "engine-update"],
 ]);
 
 /**
@@ -504,11 +515,6 @@ export class SearchService {
       };
     }
 
-    if (!this.#defaultOverrideAllowlist) {
-      this.#defaultOverrideAllowlist =
-        new SearchDefaultOverrideAllowlistHandler();
-    }
-
     if (
       extension.startupReason === "ADDON_INSTALL" ||
       extension.startupReason === "ADDON_ENABLE"
@@ -521,7 +527,7 @@ export class SearchService {
         };
       }
       if (
-        !(await this.#defaultOverrideAllowlist.canOverride(
+        !(await lazy.defaultOverrideAllowlist.canOverride(
           extension,
           engine._extensionID
         ))
@@ -551,7 +557,7 @@ export class SearchService {
 
     if (
       engine.getAttr("overriddenBy") == extension.id &&
-      (await this.#defaultOverrideAllowlist.canOverride(
+      (await lazy.defaultOverrideAllowlist.canOverride(
         extension,
         engine._extensionID
       ))
@@ -1098,13 +1104,6 @@ export class SearchService {
    * @type {Set<object>}
    */
   #startupRemovedExtensions = new Set();
-
-  /**
-   * A reference to the handler for the default override allow list.
-   *
-   * @type {SearchDefaultOverrideAllowlistHandler|null}
-   */
-  #defaultOverrideAllowlist = null;
 
   /**
    * This map is built lazily after the available search engines change.  It
@@ -2336,6 +2335,14 @@ export class SearchService {
           ? [e.identifier]
           : e.identifier.split("-");
 
+        if (e.identifier == "amazon-se") {
+          identifierComponents[1] = "sweden";
+        }
+
+        if (e.identifier == "amazon-es") {
+          identifierComponents[1] = "spain";
+        }
+
         let locale = identifierComponents.slice(1).join("-") || "default";
 
         e.webExtension.id = identifierComponents[0] + "@search.mozilla.org";
@@ -3460,7 +3467,23 @@ export class SearchService {
       case lazy.SearchUtils.TOPIC_ENGINE_MODIFIED:
         switch (verb) {
           case lazy.SearchUtils.MODIFIED_TYPE.ADDED:
+            this.#parseSubmissionMap = null;
+            break;
           case lazy.SearchUtils.MODIFIED_TYPE.CHANGED:
+            engine = engine.wrappedJSObject;
+            if (
+              engine == this.defaultEngine ||
+              engine == this.defaultPrivateEngine
+            ) {
+              this.#recordDefaultChangedEvent(
+                engine != this.defaultEngine,
+                engine,
+                engine,
+                Ci.nsISearchService.CHANGE_REASON_ENGINE_UPDATE
+              );
+            }
+            this.#parseSubmissionMap = null;
+            break;
           case lazy.SearchUtils.MODIFIED_TYPE.REMOVED:
             // Invalidate the map used to parse URLs to search engines.
             this.#parseSubmissionMap = null;

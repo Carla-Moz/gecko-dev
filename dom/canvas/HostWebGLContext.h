@@ -176,6 +176,11 @@ class HostWebGLContext final : public SupportsWeakPtr {
                        const webgl::SwapChainOptions& options) const {
     return (void)mContext->CopyToSwapChain(AutoResolve(fb), t, options);
   }
+  void WaitForTxn(const layers::RemoteTextureOwnerId aOwnerId,
+                  const layers::RemoteTextureTxnType txnType,
+                  const layers::RemoteTextureTxnId txnId) {
+    mContext->WaitForTxn(aOwnerId, txnType, txnId);
+  }
   void EndOfFrame() const { return (void)mContext->EndOfFrame(); }
   Maybe<layers::SurfaceDescriptor> GetFrontBuffer(ObjectId xrFb,
                                                   const bool webvr) const;
@@ -477,9 +482,12 @@ class HostWebGLContext final : public SupportsWeakPtr {
     return GetWebGL2Context()->GetBufferSubData(target, srcByteOffset, dest);
   }
 
-  void BufferData(GLenum target, const RawBuffer<>& data, GLenum usage) const {
-    const auto& beginOrNull = data.begin();
-    mContext->BufferData(target, data.size(), beginOrNull, usage);
+  void BufferData(GLenum target, const RawBuffer<>& srcData, GLenum usage) const {
+    mContext->BufferData(target, srcData.size(), srcData.begin(), usage);
+  }
+
+  void BufferData_SizeOnly(GLenum target, size_t byteSize, GLenum usage) const {
+    mContext->BufferData(target, byteSize, nullptr, usage);
   }
 
   void BufferSubData(GLenum target, uint64_t dstByteOffset,

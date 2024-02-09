@@ -45,18 +45,13 @@ class nsObjectLoadingContent : public nsIStreamListener,
  public:
   // This enum's values must be the same as the constants on
   // nsIObjectLoadingContent
-  enum ObjectType {
+  enum class ObjectType : uint8_t {
     // Loading, type not yet known. We may be waiting for a channel to open.
-    eType_Loading = TYPE_LOADING,
-    // Content is a "special" plugin.  Plugins are removed but these MIME
-    // types display an transparent region in their place.
-    // (Special plugins that have an HTML fallback are eType_Null)
-    eType_Fallback = TYPE_FALLBACK,
+    Loading = TYPE_LOADING,
     // Content is a subdocument, possibly SVG
-    eType_Document = TYPE_DOCUMENT,
-    // Content is unknown and should be represented by an empty element,
-    // unless an HTML fallback is available.
-    eType_Null = TYPE_NULL
+    Document = TYPE_DOCUMENT,
+    // Content is unknown and should be represented by an empty element.
+    Fallback = TYPE_FALLBACK
   };
 
   nsObjectLoadingContent();
@@ -73,30 +68,14 @@ class nsObjectLoadingContent : public nsIStreamListener,
     mNetworkCreated = aNetworkCreated;
   }
 
-  static bool IsFallbackMimeType(const nsACString& aMimeType);
-
-  // Helper for WebIDL NeedResolve
-  bool DoResolve(
-      JSContext* aCx, JS::Handle<JSObject*> aObject, JS::Handle<jsid> aId,
-      JS::MutableHandle<mozilla::Maybe<JS::PropertyDescriptor>> aDesc);
-  // The return value is whether DoResolve might end up resolving the given
-  // id.  If in doubt, return true.
-  static bool MayResolve(jsid aId);
-
   static bool IsSuccessfulRequest(nsIRequest*, nsresult* aStatus);
-
-  // Helper for WebIDL enumeration
-  void GetOwnPropertyNames(JSContext* aCx,
-                           JS::MutableHandleVector<jsid> /* unused */,
-                           bool /* unused */, mozilla::ErrorResult& aRv);
 
   // WebIDL API
   mozilla::dom::Document* GetContentDocument(nsIPrincipal& aSubjectPrincipal);
   void GetActualType(nsAString& aType) const {
     CopyUTF8toUTF16(mContentType, aType);
   }
-  uint32_t DisplayedType() const { return mType; }
-  void Reload(mozilla::ErrorResult& aRv) { aRv = Reload(); }
+  uint32_t DisplayedType() const { return uint32_t(mType); }
   nsIURI* GetSrcURI() const { return mURI; }
 
   void SwapFrameLoaders(mozilla::dom::HTMLIFrameElement& aOtherLoaderOwner,
@@ -108,14 +87,7 @@ class nsObjectLoadingContent : public nsIStreamListener,
     aRv.Throw(NS_ERROR_NOT_IMPLEMENTED);
   }
 
-  uint32_t GetRunID(mozilla::dom::SystemCallerGuarantee,
-                    mozilla::ErrorResult& aRv);
-
   bool IsRewrittenYoutubeEmbed() const { return mRewrittenYoutubeEmbed; }
-
-  void PresetOpenerWindow(const mozilla::dom::Nullable<
-                              mozilla::dom::WindowProxyHolder>& aOpenerWindow,
-                          mozilla::ErrorResult& aRv);
 
   const mozilla::Maybe<mozilla::IntrinsicSize>& GetSubdocumentIntrinsicSize()
       const {
@@ -253,15 +225,17 @@ class nsObjectLoadingContent : public nsIStreamListener,
     // can happen when changing from Loading -> Final type, but doesn't
     // necessarily happen when changing between object types. E.g., if a PDF
     // handler was installed between the last load of this object and now, we
-    // might change from eType_Document -> eType_Plugin without changing
+    // might change from Document -> Plugin without changing
     // ContentType
     eParamContentTypeChanged = 1u << 2
   };
 
   /**
-   * Configure fallback for deprecated plugin and broken elements.
+   * If we're an <object>, and show fallback, we might need to start nested
+   * <embed> or <object> loads that would otherwise be blocked by
+   * BlockEmbedOrObjectContentLoading().
    */
-  void ConfigureFallback();
+  void TriggerInnerFallbackLoads();
 
   /**
    * Internal version of LoadObject that should only be used by this class
@@ -402,7 +376,7 @@ class nsObjectLoadingContent : public nsIStreamListener,
    * deprecated by youtube, so we can just rewrite as normal.
    *
    * If we can rewrite the URL, we change the "/v/" to "/embed/", and change
-   * our type to eType_Document so that we render similarly to an iframe
+   * our type to Document so that we render similarly to an iframe
    * embed.
    */
   void MaybeRewriteYoutubeEmbed(nsIURI* aURI, nsIURI* aBaseURI,
@@ -448,10 +422,7 @@ class nsObjectLoadingContent : public nsIStreamListener,
   nsCOMPtr<nsIURI> mBaseURI;
 
   // Type of the currently-loaded content.
-  ObjectType mType : 8;
-
-  uint32_t mRunID;
-  bool mHasRunID : 1;
+  ObjectType mType;
 
   // If true, we have opened a channel as the listener and it has reached
   // OnStartRequest. Does not get set for channels that are passed directly to

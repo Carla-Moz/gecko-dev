@@ -66,8 +66,6 @@ skip-if = [
   "win11_2009", # Bug 1718296 (Windows 10 1903+ has its own window and U2F that we cannot control with tests.)
 ]
 
-["test_webauthn_isexternalctap2securitykeysupported.html"]
-
 ["test_webauthn_isplatformauthenticatoravailable.html"]
 
 ["test_webauthn_loopback.html"]
@@ -91,9 +89,6 @@ skip-if = [
   "win11_2009", # Bug 1718296 (Windows 10 1903+ has its own window and U2F that we cannot control with tests.)
   "os == 'android'", # Test disables all tokens, which is an unsupported configuration on android.
 ]
-
-["test_webauthn_override_request.html"]
-skip-if = ["os == 'android'"] # Test sets security.webauth.webauthn_enable_usbtoken to true, which isn't applicable to android
 
 ["test_webauthn_sameorigin.html"]
 fail-if = ["xorigin"] # NotAllowedError

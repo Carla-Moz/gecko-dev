@@ -97,7 +97,7 @@ export class ScreenshotsOverlay {
               <div class="face"></div>
             </div>
             <div class="preview-instructions">${instructions.value}</div>
-            <button class="screenshots-button" id="screenshots-cancel-button">${cancel.value}</button>
+            <button class="screenshots-button ghost-button" id="screenshots-cancel-button">${cancel.value}</button>
           </div>
           <div id="hover-highlight" hidden></div>
           <div id="selection-container" hidden>
@@ -764,7 +764,12 @@ export class ScreenshotsOverlay {
       let direction = event.shiftKey
         ? Services.focus.MOVEFOCUS_BACKWARD
         : Services.focus.MOVEFOCUS_FORWARD;
-      Services.focus.moveFocus(this.window, null, direction, 0);
+      Services.focus.moveFocus(
+        this.window,
+        null,
+        direction,
+        Services.focus.FLAG_BYKEY
+      );
     }
   }
 

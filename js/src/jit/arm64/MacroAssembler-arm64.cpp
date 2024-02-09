@@ -437,7 +437,7 @@ Assembler::Condition MacroAssemblerCompat::testBigIntTruthy(
 void MacroAssemblerCompat::breakpoint() {
   // Note, other payloads are possible, but GDB is known to misinterpret them
   // sometimes and iloop on the breakpoint instead of stopping properly.
-  Brk(0);
+  Brk(0xf000);
 }
 
 // Either `any` is valid or `sixtyfour` is valid.  Return a 32-bit ARMRegister
@@ -1513,12 +1513,6 @@ void MacroAssembler::callWithABIPre(uint32_t* stackAdjust, bool callFromWasm) {
     emitter.emit(moveResolver_);
     emitter.finish();
   }
-
-  // Call boundaries communicate stack via SP.
-  // (jseward, 2021Mar03) This sync may well be redundant, given that all of
-  // the MacroAssembler::call methods generate a sync before the call.
-  // Removing it does not cause any failures for all of jit-tests.
-  syncStackPtr();
 
   assertStackAlignment(ABIStackAlignment);
 }

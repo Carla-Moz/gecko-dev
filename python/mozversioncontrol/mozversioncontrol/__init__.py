@@ -8,6 +8,7 @@ import os
 import re
 import shutil
 import subprocess
+from datetime import datetime
 from pathlib import Path
 from typing import (
     Iterator,
@@ -125,7 +126,7 @@ class Repository(object):
         if self._version:
             return self._version
         info = self._run("--version").strip()
-        match = re.search("version ([^+)]+)", info)
+        match = re.search(r"version ([^+)]+)", info)
         if not match:
             raise Exception("Unable to identify tool version.")
 
@@ -344,6 +345,11 @@ class Repository(object):
     @abc.abstractmethod
     def remove_current_commit(self):
         """Remove the currently checked out commit from VCS history."""
+
+    @abc.abstractmethod
+    def get_last_modified_time_for_file(self, path: Path):
+        """Return last modified in VCS time for the specified file."""
+        pass
 
 
 class HgRepository(Repository):
@@ -673,6 +679,20 @@ class HgRepository(Repository):
             self.raise_for_missing_extension("evolve")
             raise
 
+    def get_last_modified_time_for_file(self, path: Path):
+        """Return last modified in VCS time for the specified file."""
+        out = self._run(
+            "log",
+            "--template",
+            "{date|isodatesec}",
+            "--limit",
+            "1",
+            "--follow",
+            str(path),
+        )
+
+        return datetime.strptime(out[:-6].strip(), "%Y-%m-%d %H:%M:%S")
+
 
 class GitRepository(Repository):
     """An implementation of `Repository` for Git repositories."""
@@ -916,6 +936,12 @@ class GitRepository(Repository):
         """Remove the currently checked out commit from VCS history."""
         self._run("reset", "HEAD~")
 
+    def get_last_modified_time_for_file(self, path: Path):
+        """Return last modified in VCS time for the specified file."""
+        out = self._run("log", "-1", "--format=%ad", "--date=iso", path)
+
+        return datetime.strptime(out[:-6].strip(), "%Y-%m-%d %H:%M:%S")
+
 
 class SrcRepository(Repository):
     """An implementation of `Repository` for Git repositories."""
@@ -1036,6 +1062,10 @@ class SrcRepository(Repository):
 
     def set_config(self, name, value):
         pass
+
+    def get_last_modified_time_for_file(self, path: Path):
+        """Return last modified in VCS time for the specified file."""
+        raise MissingVCSTool
 
 
 def get_repository_object(

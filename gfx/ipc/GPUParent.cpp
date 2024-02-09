@@ -75,6 +75,7 @@
 #  include "mozilla/WindowsVersion.h"
 #  include "mozilla/gfx/DeviceManagerDx.h"
 #  include "mozilla/layers/GpuProcessD3D11TextureMap.h"
+#  include "mozilla/layers/GpuProcessD3D11QueryMap.h"
 #  include "mozilla/layers/TextureD3D11.h"
 #  include "mozilla/widget/WinCompositorWindowThread.h"
 #  include "MediaCodecsSupport.h"
@@ -114,8 +115,9 @@ static void ReportHardwareMediaCodecSupportIfNeeded() {
 #if defined(XP_WIN)
   NS_GetCurrentThread()->Dispatch(NS_NewRunnableFunction(
       "GPUParent:ReportHardwareMediaCodecSupportIfNeeded", []() {
-        // Only report telemetry when hardware decoding is avaliable.
-        if (!gfx::gfxVars::CanUseHardwareVideoDecoding()) {
+        // Only report telemetry when hardware decoding is available.
+        if (!gfx::gfxVars::IsInitialized() ||
+            !gfx::gfxVars::CanUseHardwareVideoDecoding()) {
           return;
         }
         sReported = true;
@@ -257,6 +259,7 @@ bool GPUParent::Init(mozilla::ipc::UntypedEndpoint&& aEndpoint,
   gfxWindowsPlatform::InitMemoryReportersForGPUProcess();
   DeviceManagerDx::Init();
   GpuProcessD3D11TextureMap::Init();
+  GpuProcessD3D11QueryMap::Init();
 #endif
 
   CompositorThreadHolder::Start();
@@ -813,6 +816,7 @@ void GPUParent::ActorDestroy(ActorDestroyReason aWhy) {
 #endif
 
 #if defined(XP_WIN)
+        GpuProcessD3D11QueryMap::Shutdown();
         GpuProcessD3D11TextureMap::Shutdown();
         DeviceManagerDx::Shutdown();
 #endif

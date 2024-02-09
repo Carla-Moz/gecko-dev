@@ -69,6 +69,7 @@
 #include "mozilla/AutoRestore.h"
 #include "mozilla/EffectCompositor.h"
 #include "mozilla/EffectSet.h"
+#include "mozilla/glean/GleanMetrics.h"
 #include "mozilla/HashTable.h"
 #include "mozilla/LookAndFeel.h"
 #include "mozilla/OperatorNewExtensions.h"
@@ -187,7 +188,6 @@ already_AddRefed<ActiveScrolledRoot> ActiveScrolledRoot::CreateASRForFrame(
   }
   asr->mParent = aParent;
   asr->mScrollableFrame = aScrollableFrame;
-  asr->mViewId = Nothing();
   asr->mDepth = aParent ? aParent->mDepth + 1 : 1;
   asr->mRetained = aIsRetained;
 
@@ -272,9 +272,6 @@ static uint64_t AddAnimationsForWebRender(
   animationInfo.AddAnimationsForDisplayItem(
       frame, aDisplayListBuilder, aItem, aItem->GetType(),
       aManager->LayerManager(), aPosition);
-  animationInfo.StartPendingAnimations(
-      frame->PresContext()->RefreshDriver()->MostRecentRefresh(
-          /* aEnsureTimerStarted = */ false));
 
   // Note that animationsId can be 0 (uninitialized in AnimationInfo) if there
   // are no active animations.
@@ -653,7 +650,6 @@ nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
       mCurrentContainerASR(nullptr),
       mCurrentFrame(aReferenceFrame),
       mCurrentReferenceFrame(aReferenceFrame),
-      mCaretFrame(nullptr),
       mScrollInfoItemsForHoisting(nullptr),
       mFirstClipChainToDestroy(nullptr),
       mTableBackgroundSet(nullptr),
@@ -721,21 +717,6 @@ nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
       mRetainingDisplayList && StaticPrefs::layout_display_list_retain_sc();
 }
 
-static PresShell* GetFocusedPresShell() {
-  nsPIDOMWindowOuter* focusedWnd =
-      nsFocusManager::GetFocusManager()->GetFocusedWindow();
-  if (!focusedWnd) {
-    return nullptr;
-  }
-
-  nsCOMPtr<nsIDocShell> focusedDocShell = focusedWnd->GetDocShell();
-  if (!focusedDocShell) {
-    return nullptr;
-  }
-
-  return focusedDocShell->GetPresShell();
-}
-
 void nsDisplayListBuilder::BeginFrame() {
   nsCSSRendering::BeginFrameTreesLocked();
 
@@ -745,26 +726,6 @@ void nsDisplayListBuilder::BeginFrame() {
   mInTransform = false;
   mInFilter = false;
   mSyncDecodeImages = false;
-
-  if (!mBuildCaret) {
-    return;
-  }
-
-  RefPtr<PresShell> presShell = GetFocusedPresShell();
-  if (presShell) {
-    RefPtr<nsCaret> caret = presShell->GetCaret();
-    mCaretFrame = caret->GetPaintGeometry(&mCaretRect);
-
-    // The focused pres shell may not be in the document that we're
-    // painting, or be in a popup. Check if the display root for
-    // the caret matches the display root that we're painting, and
-    // only use it if it matches.
-    if (mCaretFrame &&
-        nsLayoutUtils::GetDisplayRootFrame(mCaretFrame) !=
-            nsLayoutUtils::GetDisplayRootFrame(mReferenceFrame)) {
-      mCaretFrame = nullptr;
-    }
-  }
 }
 
 void nsDisplayListBuilder::AddEffectUpdate(dom::RemoteBrowser* aBrowser,
@@ -804,7 +765,6 @@ void nsDisplayListBuilder::EndFrame() {
   FreeClipChains();
   FreeTemporaryItems();
   nsCSSRendering::EndFrameTreesLocked();
-  mCaretFrame = nullptr;
 }
 
 void nsDisplayListBuilder::MarkFrameForDisplay(nsIFrame* aFrame,
@@ -1139,11 +1099,35 @@ void nsDisplayListBuilder::EnterPresShell(const nsIFrame* aReferenceFrame,
     return;
   }
 
+  RefPtr<nsCaret> caret = state->mPresShell->GetCaret();
+  // This code run for each pres shell and caret->GetPaintGeometry
+  // will return nullptr for invisible caret. So only one caret
+  // can be painted at a time.
+  state->mCaretFrame = caret->GetPaintGeometry(&mCaretRect);
+
+  // Check if the display root for the caret matches the display
+  // root that we're painting, and only use it if it matches. Likely
+  // we only need this for popup.
+  if (state->mCaretFrame &&
+      nsLayoutUtils::GetDisplayRootFrame(state->mCaretFrame) !=
+          nsLayoutUtils::GetDisplayRootFrame(aReferenceFrame)) {
+    state->mCaretFrame = nullptr;
+  }
+
   // Caret frames add visual area to their frame, but we don't update the
   // overflow area. Use flags to make sure we build display items for that frame
   // instead.
-  if (mCaretFrame && mCaretFrame->PresShell() == state->mPresShell) {
-    MarkFrameForDisplay(mCaretFrame, aReferenceFrame);
+  if (state->mCaretFrame) {
+    MOZ_ASSERT(state->mCaretFrame->PresShell() == state->mPresShell);
+    // Generally, nsCaret sets the last caret frame in
+    // nsCaret::SchedulePaint to call MarkNeedsDisplayItemRebuild()
+    // on the frame accordingly, so we shouldn't need do to this manually.
+    // However, it's possible for nsCaret::SchedulePaint fails to find
+    // the caret frame (i.e, selection changes), we end up not calling
+    // MarkNeedsDisplayItemRebuild() on this frame. This is not good,
+    // so we are manually setting the last caret frame here.
+    caret->SetLastCaretFrame(state->mCaretFrame);
+    MarkFrameForDisplay(state->mCaretFrame, aReferenceFrame);
   }
 }
 
@@ -4132,8 +4116,8 @@ bool nsDisplayCaret::CreateWebRenderCommands(
   nscolor caretColor;
   nsIFrame* frame =
       mCaret->GetPaintGeometry(&caretRect, &hookRect, &caretColor);
-  MOZ_ASSERT(frame == mFrame, "We're referring different frame");
-  if (!frame) {
+  if (NS_WARN_IF(!frame) || NS_WARN_IF(frame != mFrame)) {
+    NS_ASSERTION(false, "Caret invalidation bug");
     return true;
   }
 
@@ -8589,11 +8573,9 @@ PaintTelemetry::AutoRecordPaint::~AutoRecordPaint() {
     return;
   }
 
-  double totalMs = (TimeStamp::Now() - mStart).ToMilliseconds();
-
   // Record the total time.
-  Telemetry::Accumulate(Telemetry::CONTENT_PAINT_TIME,
-                        static_cast<uint32_t>(totalMs));
+  mozilla::glean::gfx_content::paint_time.AccumulateRawDuration(
+      TimeStamp::Now() - mStart);
 }
 
 static nsIFrame* GetSelfOrPlaceholderFor(nsIFrame* aFrame) {

@@ -107,6 +107,14 @@ class BrowsertimeAndroid(PerftestAndroid, Browsertime):
                 )
                 activity = "mozilla.telemetry.glean.debug.GleanDebugActivity"
 
+            if self.device.shell_output("getprop ro.product.model") in ["Pixel 6"]:
+                args_list.extend(
+                    [
+                        '--firefox.geckodriverArgs="--android-storage"',
+                        '--firefox.geckodriverArgs="app"',
+                    ]
+                )
+
             args_list.extend(
                 [
                     "--browser",
@@ -160,6 +168,9 @@ class BrowsertimeAndroid(PerftestAndroid, Browsertime):
             "--no-experiments",
             "--disable-site-isolation-trials",
         ]
+
+        # Disable finch experiments
+        chrome_args += ["--enable-benchmarking"]
 
         if test.get("playback", False):
             pb_args = [

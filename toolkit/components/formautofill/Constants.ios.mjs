@@ -16,7 +16,8 @@ const IOS_DEFAULT_PREFERENCES = {
   "extensions.formautofill.creditCards.supported": "detect",
   "browser.search.region": "US",
   "extensions.formautofill.creditCards.supportedCountries": "US,CA,GB,FR,DE",
-  "extensions.formautofill.addresses.enabled": false,
+  "extensions.formautofill.addresses.enabled": true,
+  "extensions.formautofill.addresses.experiments.enabled": false, // TODO(FXCM-765): fetch this value from swift
   "extensions.formautofill.addresses.capture.enabled": false,
   "extensions.formautofill.addresses.supportedCountries": "",
   "extensions.formautofill.creditCards.enabled": true,
@@ -27,10 +28,6 @@ const IOS_DEFAULT_PREFERENCES = {
   "extensions.formautofill.addresses.ignoreAutocompleteOff": true,
   "extensions.formautofill.heuristics.enabled": true,
   "extensions.formautofill.section.enabled": true,
-  // WebKit doesn't support the checkVisibility API, setting the threshold value to 0 to ensure
-  // `IsFieldVisible` function doesn't use it
-  "extensions.formautofill.heuristics.visibilityCheckThreshold": 0,
-  "extensions.formautofill.heuristics.interactivityCheckMode": "focusability",
   "extensions.formautofill.heuristics.captureOnFormRemoval": false,
   "extensions.formautofill.heuristics.captureOnPageNavigation": false,
   "extensions.formautofill.focusOnAutofill": false,

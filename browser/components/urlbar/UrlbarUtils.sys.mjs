@@ -21,6 +21,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
   UrlbarPrefs: "resource:///modules/UrlbarPrefs.sys.mjs",
   UrlbarProviderInterventions:
     "resource:///modules/UrlbarProviderInterventions.sys.mjs",
+  UrlbarProviderOpenTabs: "resource:///modules/UrlbarProviderOpenTabs.sys.mjs",
   UrlbarProvidersManager: "resource:///modules/UrlbarProvidersManager.sys.mjs",
   UrlbarProviderSearchTips:
     "resource:///modules/UrlbarProviderSearchTips.sys.mjs",
@@ -92,7 +93,7 @@ export var UrlbarUtils = {
     REMOTE_TAB: 6,
     // An actionable message to help the user with their query.
     TIP: 7,
-    // A type of result created at runtime, for example by an extension.
+    // A type of result which layout is defined at runtime.
     DYNAMIC: 8,
 
     // When you add a new type, also add its schema to
@@ -1424,6 +1425,8 @@ export var UrlbarUtils = {
       return selType === "oneoff" ? "search_shortcut_button" : "input_field";
     }
 
+    // While product doesn't use experimental addons anymore, tests may still do
+    // for testing purposes.
     if (
       result.providerType === UrlbarUtils.PROVIDER_TYPE.EXTENSION &&
       result.providerName != "Omnibox"
@@ -1559,6 +1562,11 @@ export var UrlbarUtils = {
   },
 
   _getQuickSuggestTelemetryType(result) {
+    if (result.payload.telemetryType == "weather") {
+      // Return "weather" without the usual source prefix for consistency with
+      // the weather result returned by UrlbarProviderWeather.
+      return "weather";
+    }
     let source = result.payload.source;
     if (source == "remote-settings") {
       source = "rs";
@@ -2127,8 +2135,10 @@ export class UrlbarQueryContext {
     this.deferUserSelectionProviders = new Set();
     this.trimmedSearchString = this.searchString.trim();
     this.userContextId =
-      options.userContextId ||
-      Ci.nsIScriptSecurityManager.DEFAULT_USER_CONTEXT_ID;
+      lazy.UrlbarProviderOpenTabs.getUserContextIdForOpenPagesTable(
+        options.userContextId,
+        this.isPrivate
+      ) || Ci.nsIScriptSecurityManager.DEFAULT_USER_CONTEXT_ID;
   }
 
   /**
@@ -2167,10 +2177,7 @@ export class UrlbarQueryContext {
       }
 
       try {
-        let info = Services.uriFixup.getFixupURIInfo(
-          this.trimmedSearchString,
-          flags
-        );
+        let info = Services.uriFixup.getFixupURIInfo(this.searchString, flags);
 
         this._fixupInfo = {
           href: info.fixedURI.spec,

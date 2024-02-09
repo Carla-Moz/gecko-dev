@@ -140,6 +140,7 @@ function isSelectedTab(win, tab) {
 function ensureReportBrokenSitePreffedOn() {
   Services.prefs.setBoolPref(PREFS.DATAREPORTING_ENABLED, true);
   Services.prefs.setBoolPref(PREFS.REPORTER_ENABLED, true);
+  ensureReasonDisabled();
 }
 
 function ensureReportBrokenSitePreffedOff() {
@@ -333,7 +334,7 @@ class ReportBrokenSiteHelper {
   }
 
   get reasonDropdownPopup() {
-    return this.reasonInput.querySelector("menupopup");
+    return this.win.document.getElementById("ContentSelectDropdown").menupopup;
   }
 
   get reasonRequiredMessage() {
@@ -387,19 +388,13 @@ class ReportBrokenSiteHelper {
 
   chooseReason(value) {
     const item = this.getViewNode(`report-broken-site-popup-reason-${value}`);
-    const input = this.reasonInput;
-    input.selectedItem = item;
-    input.dispatchEvent(
-      new UIEvent("command", { bubbles: true, view: this.win })
-    );
+    this.reasonInput.selectedIndex = item.index;
   }
 
   dismissDropdownPopup() {
-    const menuPromise = BrowserTestUtils.waitForEvent(
-      this.reasonDropdownPopup,
-      "popuphidden"
-    );
-    EventUtils.synthesizeKey("KEY_Escape");
+    const popup = this.reasonDropdownPopup;
+    const menuPromise = BrowserTestUtils.waitForPopupEvent(popup, "hidden");
+    popup.hidePopup();
     return menuPromise;
   }
 
@@ -729,7 +724,7 @@ class HelpMenuHelper extends MenuHelper {
 
   async close() {
     const { helpMenu } = this;
-    const promise = BrowserTestUtils.waitForEvent(helpMenu, "popuphidden");
+    const promise = BrowserTestUtils.waitForPopupEvent(helpMenu, "hidden");
 
     // (Also copied from browser_title_case_menus.js)
     // Just for good measure, we'll fire the popuphiding/popuphidden events
@@ -772,7 +767,7 @@ class ProtectionsPanelHelper extends MenuHelper {
   async close() {
     if (this.opened) {
       const popup = this.popup;
-      const promise = BrowserTestUtils.waitForEvent(popup, "popuphidden");
+      const promise = BrowserTestUtils.waitForPopupEvent(popup, "hidden");
       PanelMultiView.hidePopup(popup, false);
       await promise;
     }

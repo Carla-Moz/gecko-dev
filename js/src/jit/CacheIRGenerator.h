@@ -65,6 +65,7 @@ class MOZ_RAII IRGenerator {
   CacheKind cacheKind_;
   ICState::Mode mode_;
   bool isFirstStub_;
+  uint8_t numOptimizedStubs_;
 
   // Important: This pointer may be passed to the profiler. If this is non-null,
   // it must point to a C string literal with static lifetime, not a heap- or
@@ -87,7 +88,8 @@ class MOZ_RAII IRGenerator {
 
   void emitIdGuard(ValOperandId valId, const Value& idVal, jsid id);
 
-  OperandId emitNumericGuard(ValOperandId valId, Scalar::Type type);
+  OperandId emitNumericGuard(ValOperandId valId, const Value& v,
+                             Scalar::Type type);
 
   StringOperandId emitToStringGuard(ValOperandId id, const Value& v);
 
@@ -388,6 +390,9 @@ class MOZ_RAII HasPropIRGenerator : public IRGenerator {
   AttachDecision tryAttachNamedProp(HandleObject obj, ObjOperandId objId,
                                     HandleId key, ValOperandId keyId);
   AttachDecision tryAttachMegamorphic(ObjOperandId objId, ValOperandId keyId);
+  AttachDecision tryAttachSmallObjectVariableKey(HandleObject obj,
+                                                 ObjOperandId objId, jsid key,
+                                                 ValOperandId keyId);
   AttachDecision tryAttachNative(NativeObject* obj, ObjOperandId objId,
                                  jsid key, ValOperandId keyId,
                                  PropertyResult prop, NativeObject* holder);
@@ -590,8 +595,8 @@ class MOZ_RAII InlinableNativeIRGenerator {
     return generator_.emitToStringGuard(id, v);
   }
 
-  auto emitNumericGuard(ValOperandId valId, Scalar::Type type) {
-    return generator_.emitNumericGuard(valId, type);
+  auto emitNumericGuard(ValOperandId valId, const Value& v, Scalar::Type type) {
+    return generator_.emitNumericGuard(valId, v, type);
   }
 
   auto guardToIntPtrIndex(const Value& index, ValOperandId indexId,
@@ -631,6 +636,8 @@ class MOZ_RAII InlinableNativeIRGenerator {
   AttachDecision tryAttachIsConstructor();
   AttachDecision tryAttachIsCrossRealmArrayConstructor();
   AttachDecision tryAttachGuardToClass(InlinableNative native);
+  AttachDecision tryAttachGuardToArrayBuffer();
+  AttachDecision tryAttachGuardToSharedArrayBuffer();
   AttachDecision tryAttachHasClass(const JSClass* clasp,
                                    bool isPossiblyWrapped);
   AttachDecision tryAttachRegExpMatcherSearcher(InlinableNative native);
@@ -687,6 +694,7 @@ class MOZ_RAII InlinableNativeIRGenerator {
   AttachDecision tryAttachTypedArrayByteOffset();
   AttachDecision tryAttachTypedArrayElementSize();
   AttachDecision tryAttachTypedArrayLength(bool isPossiblyWrapped);
+  AttachDecision tryAttachTypedArrayLengthZeroOnOutOfBounds();
   AttachDecision tryAttachArrayBufferByteLength(bool isPossiblyWrapped);
   AttachDecision tryAttachIsConstructing();
   AttachDecision tryAttachGetNextMapSetEntryForIterator(bool isMap);

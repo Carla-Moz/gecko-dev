@@ -8,7 +8,7 @@
 # documentation and how to modify this file.
 repo: mozilla-central
 created_at: '2021-10-14T12:50:40.073465'
-updated_at: '2024-01-24T13:43:48.705480'
+updated_at: '2024-02-07T17:07:36.271500'
 export:
   path: ./docs/mots/index.rst
   format: rst
@@ -47,6 +47,10 @@ people:
     bmo_id: 517691
     name: Alastor Wu
     nick: alwu
+  - &aminomancer
+    bmo_id: 636965
+    name: Shane Hughes
+    nick: aminomancer
   - &amy
     bmo_id: 622155
     name: Amy Churchwell
@@ -91,10 +95,6 @@ people:
     bmo_id: 272464
     name: Bas Schouten
     nick: bas.schouten
-  - &bbouvier
-    bmo_id: 468907
-    name: Benjamin Bouvier
-    nick: bbouvier
   - &bc
     bmo_id: 23402
     name: Bob Clary
@@ -115,10 +115,6 @@ people:
     bmo_id: 483302
     name: Bevis Tseng
     nick: bevis
-  - &bhackett1024
-    bmo_id: 346231
-    name: Brian Hackett
-    nick: bhackett1024
   - &bhearsum
     bmo_id: 259016
     name: bhearsum
@@ -184,10 +180,6 @@ people:
     bmo_id: 525693
     name: Nazım Can Altınova
     nick: canova
-  - &caroline
-    bmo_id: 644229
-    name: Caroline Cullen
-    nick: caroline
   - &chunmin
     bmo_id: 521646
     name: C
@@ -263,10 +255,6 @@ people:
     bmo_id: 644159
     name: Dennis Jackson
     nick: djackson
-  - &djvj
-    bmo_id: 436087
-    name: Kannan Vijayan
-    nick: djvj
   - &dlrobertson
     bmo_id: 705145
     name: Dan Robertson
@@ -287,10 +275,6 @@ people:
     bmo_id: 713270
     name: DJ
     nick: dwalker
-  - &ed
-    bmo_id: 629148
-    name: Ed Lee
-    nick: ed
   - &edgar
     bmo_id: 455480
     name: Edgar Chen
@@ -639,10 +623,6 @@ people:
     bmo_id: 536714
     name: Lee Salzman
     nick: lsalzman
-  - &luke
-    bmo_id: 347312
-    name: Luke Wagner
-    nick: luke
   - &mkato
     bmo_id: 8636
     name: Makoto Kato
@@ -911,10 +891,6 @@ people:
     bmo_id: 456485
     name: Stephen A Pohl
     nick: spohl
-  - &sstangl
-    bmo_id: 383201
-    name: Sean Stangl
-    nick: sstangl
   - &standard8
     bmo_id: 112088
     name: Mark Banner
@@ -1925,9 +1901,15 @@ modules:
       - js/src/jit/**/*
     meta:
       peers_emeritus:
+        - Benjamin Bouvier
+        - Brian Hackett
+        - Caroline Cullen
         - David Anderson
-        - Shu-yu Guo
         - Hannes Verschore
+        - Kannan Vijayan
+        - Luke Wagner
+        - Shu-yu Guo
+        - Sean Stangl
       url: https://spidermonkey.dev/
       components:
         - 'Core::JavaScript Engine: JIT'
@@ -1935,30 +1917,12 @@ modules:
       - *jandem
     peers:
       - *anba
-      - *bbouvier
       - *tcampbell
-      - *caroline
       - *mgaudet
-      - *bhackett1024
       - *iain
       - *nbp
       - *evilpie
-      - *sstangl
-      - *djvj
-      - *luke
     machine_name: core_javascript_jit
-
-  - name: 'Core: js-tests'
-    description: JavaScript test suite
-    includes:
-      - js/src/tests/**/*
-    meta:
-      group: dev-tech-js-engine
-      url: http://www.mozilla.org/js/tests/library.html
-    owners:
-      - *bc
-    peers: []
-    machine_name: core_jstests
 
   - name: 'Core: Layout Engine'
     description: rendering tree construction, layout (reflow), etc.
@@ -2288,7 +2252,7 @@ modules:
     peers:
       - *standard8
       - *dcoates
-      - *ed
+      - *Mardak
       - *mossop
     machine_name: core_nodejs_usage_tools_and_style
 
@@ -3292,6 +3256,8 @@ modules:
           - *amy
           - *emilio
           - *jules
+          - *cmkm
+          - *kcochrane
         machine_name: desktop_theme
 
       - name: Desktop UI
@@ -3388,19 +3354,29 @@ modules:
         machine_name: form_autofill
 
       - name: In-product Messaging
-        description: The system for delivering in-product messaging.
+        description: The system for delivering in-product messaging and onboarding
+          including Activity Stream Router, about:welcome, UI tour.
         includes:
+          - browser/components/asrouter/**/*
+          - browser/components/aboutwelcome/**/*
+          - browser/components/uitour/**/*
           - toolkit/components/messaging-system/**/*
         meta:
           components:
             - Firefox::Messaging System
+            - Firefox::Tours
+          owners_emeritus:
+            - *Mardak
           peers_emeritus:
             - *k88hudson
+            - *MattN
         owners:
           - *pdahiya
         peers:
           - *nanj
           - *Mardak
+          - *dmosedale
+          - *aminomancer
         machine_name: inproduct_messaging
 
       - name: Launcher Process
@@ -3438,27 +3414,16 @@ modules:
         meta:
           components:
             - Firefox::New Tab Page
+          owners_emeritus:
+            - *Mardak
           peers_emeritus:
             - *k88hudson
             - *aoprea
         owners:
-          - *ed
-        peers:
           - *thecount
-        machine_name: new_tab_page
-
-      - name: Onboarding
-        description: The onboarding experience including UI tours.
-        includes:
-          - browser/components/uitour/**/*
-        meta:
-          components:
-            - Firefox::Tours
-        owners:
-          - *ed
         peers:
-          - *MattN
-        machine_name: onboarding
+          - *amy
+        machine_name: new_tab_page
 
       - name: Password Manager
         description: Managing, saving and filling logins.
@@ -3493,11 +3458,13 @@ modules:
         includes:
           - toolkit/components/pictureinpicture
           - browser/extensions/pictureinpicture
+        meta:
+          owners_emeritus:
+            - *micah
+            - *mhowell
         excludes: []
         owners:
-          - *mhowell
           - *mconley
-          - *micah
         peers:
           - *niklas
           - *kpatenio
@@ -4240,5 +4207,5 @@ modules:
         - Ryan Tilder
       group: dev-platform
 hashes:
-  config: e3967851d98359484df21891d9b476cf4ca7a7a3
-  export: 513adbfffcff17392ef12ba381972483fae114c8
+  config: 179bd5b31618f0bd93b96b33ca41c6d79280bec7
+  export: 1781919aca279a2f155f1eb5cbfbd9556a2798e5

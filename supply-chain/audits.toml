@@ -776,6 +776,11 @@ who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
 delta = "0.69.1 -> 0.69.2"
 
+[[audits.bindgen]]
+who = "Emilio Cobos Álvarez <emilio@crisal.io>"
+criteria = "safe-to-deploy"
+delta = "0.69.2 -> 0.69.4"
+
 [[audits.bit-set]]
 who = "Aria Beingessner <a.beingessner@gmail.com>"
 criteria = "safe-to-deploy"
@@ -1299,12 +1304,13 @@ delta = "0.5.0 -> 0.7.0"
 [[audits.d3d12]]
 who = [
     "Erich Gubler <egubler@mozilla.com>",
-    "Nicolas Silva <nical@fastmail.com>",
     "Teodor Tanasoaia <ttanasoaia@mozilla.com>",
     "Erich Gubler <erichdongubler@gmail.com>",
+    "Jim Blandy <jimb@red-bean.com>",
+    "Nicolas Silva <nical@fastmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "0.7.0 -> 0.19.0@git:f9509bcf9ec2b63a64eb7fea93f7f44cd5ae4d2e"
+delta = "0.7.0 -> 0.19.0@git:07e59eb6fc7de3f682f1c401b9cf9f0da9ee4b4a"
 importable = false
 
 [[audits.darling]]
@@ -1529,6 +1535,16 @@ notes = "I, Henri Sivonen, wrote encoding_rs for Gecko and have reviewed contrib
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
 delta = "0.8.31 -> 0.8.32"
+
+[[audits.enum-map]]
+who = "Kershaw Chang <kershaw@mozilla.com>"
+criteria = "safe-to-deploy"
+version = "2.7.3"
+
+[[audits.enum-map-derive]]
+who = "Kershaw Chang <kershaw@mozilla.com>"
+criteria = "safe-to-deploy"
+version = "0.17.0"
 
 [[audits.enum-primitive-derive]]
 who = "Gabriele Svelto <gsvelto@mozilla.com>"
@@ -1993,6 +2009,11 @@ who = "Teodor Tanasoaia <ttanasoaia@mozilla.com>"
 criteria = "safe-to-deploy"
 delta = "0.2.0 -> 0.3.0"
 
+[[audits.gpu-allocator]]
+who = "Erich Gubler <erichdongubler@gmail.com>"
+criteria = "safe-to-deploy"
+version = "0.25.0"
+
 [[audits.gpu-descriptor]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
@@ -2134,6 +2155,24 @@ who = "Makoto Kato <m_kato@ga2.so-net.ne.jp>"
 criteria = "safe-to-deploy"
 version = "1.4.0"
 notes = "This crate doesn't contain network and file access. Although this has unsafe block, the reason is added in the comment block. I audited code."
+
+[[audits.icu_locid_transform_data]]
+who = "Jonathan Kew <jkew@mozilla.com>"
+criteria = "safe-to-deploy"
+version = "1.4.0"
+notes = "Compile-time static for the icu_locid_transform crate."
+
+[[audits.icu_properties]]
+who = "Jonathan Kew <jkew@mozilla.com>"
+criteria = "safe-to-deploy"
+version = "1.4.0"
+notes = "This is used by ICU4X for character property lookup. The few (4) usages of unsafe have comments clarifying their safety."
+
+[[audits.icu_properties_data]]
+who = "Jonathan Kew <jkew@mozilla.com>"
+criteria = "safe-to-deploy"
+version = "1.4.0"
+notes = "Compile-time static data for the icu_properties crate."
 
 [[audits.icu_provider]]
 who = "Makoto Kato <m_kato@ga2.so-net.ne.jp>"
@@ -2597,13 +2636,13 @@ delta = "0.13.0 -> 0.14.0"
 
 [[audits.naga]]
 who = [
-    "Jim Blandy <jimb@red-bean.com>",
-    "Nicolas Silva <nical@fastmail.com>",
     "Teodor Tanasoaia <ttanasoaia@mozilla.com>",
     "Erich Gubler <erichdongubler@gmail.com>",
+    "Jim Blandy <jimb@red-bean.com>",
+    "Nicolas Silva <nical@fastmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "0.14.0 -> 0.19.0@git:f9509bcf9ec2b63a64eb7fea93f7f44cd5ae4d2e"
+delta = "0.14.0 -> 0.19.0@git:07e59eb6fc7de3f682f1c401b9cf9f0da9ee4b4a"
 importable = false
 
 [[audits.net2]]
@@ -3065,6 +3104,17 @@ delta = "0.11.9 -> 0.12.1"
 who = "Kershaw Chang <kershaw@mozilla.com>"
 criteria = "safe-to-deploy"
 version = "0.9.0"
+
+[[audits.qlog]]
+who = "Kershaw Chang <kershaw@mozilla.com>"
+criteria = "safe-to-deploy"
+delta = "0.9.0 -> 0.11.0"
+
+[[audits.qlog]]
+who = "Kershaw Chang <kershaw@mozilla.com>"
+criteria = "safe-to-deploy"
+delta = "0.11.0 -> 0.11.0@git:09ea4b244096a013071cfe2175bbf2945fb7f8d1"
+importable = false
 
 [[audits.quote]]
 who = "Nika Layzell <nika@thelayzells.com>"
@@ -3932,6 +3982,17 @@ who = "Makoto Kato <m_kato@ga2.so-net.ne.jp>"
 criteria = "safe-to-deploy"
 delta = "0.3.8 -> 0.3.13"
 
+[[audits.unicode-bidi]]
+who = "Jonathan Kew <jkew@mozilla.com>"
+criteria = "safe-to-deploy"
+delta = "0.3.13 -> 0.3.14"
+notes = "I am the author of the bulk of the upstream changes in this version, and also checked the remaining post-0.3.13 changes."
+
+[[audits.unicode-bidi]]
+who = "Jonathan Kew <jfkthame@gmail.com>"
+criteria = "safe-to-deploy"
+delta = "0.3.14 -> 0.3.15"
+
 [[audits.unicode-ident]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
@@ -4384,13 +4445,13 @@ delta = "0.17.0 -> 0.18.0"
 
 [[audits.wgpu-core]]
 who = [
-    "Jim Blandy <jimb@red-bean.com>",
-    "Nicolas Silva <nical@fastmail.com>",
     "Teodor Tanasoaia <ttanasoaia@mozilla.com>",
     "Erich Gubler <erichdongubler@gmail.com>",
+    "Jim Blandy <jimb@red-bean.com>",
+    "Nicolas Silva <nical@fastmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "0.18.0 -> 0.19.0@git:f9509bcf9ec2b63a64eb7fea93f7f44cd5ae4d2e"
+delta = "0.18.0 -> 0.19.0@git:07e59eb6fc7de3f682f1c401b9cf9f0da9ee4b4a"
 importable = false
 
 [[audits.wgpu-hal]]
@@ -4438,13 +4499,13 @@ delta = "0.17.0 -> 0.18.0"
 
 [[audits.wgpu-hal]]
 who = [
-    "Jim Blandy <jimb@red-bean.com>",
-    "Nicolas Silva <nical@fastmail.com>",
     "Teodor Tanasoaia <ttanasoaia@mozilla.com>",
     "Erich Gubler <erichdongubler@gmail.com>",
+    "Jim Blandy <jimb@red-bean.com>",
+    "Nicolas Silva <nical@fastmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "0.18.0 -> 0.19.0@git:f9509bcf9ec2b63a64eb7fea93f7f44cd5ae4d2e"
+delta = "0.18.0 -> 0.19.0@git:07e59eb6fc7de3f682f1c401b9cf9f0da9ee4b4a"
 importable = false
 
 [[audits.wgpu-types]]
@@ -4492,13 +4553,13 @@ delta = "0.17.0 -> 0.18.0"
 
 [[audits.wgpu-types]]
 who = [
-    "Jim Blandy <jimb@red-bean.com>",
-    "Nicolas Silva <nical@fastmail.com>",
     "Teodor Tanasoaia <ttanasoaia@mozilla.com>",
     "Erich Gubler <erichdongubler@gmail.com>",
+    "Jim Blandy <jimb@red-bean.com>",
+    "Nicolas Silva <nical@fastmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "0.18.0 -> 0.19.0@git:f9509bcf9ec2b63a64eb7fea93f7f44cd5ae4d2e"
+delta = "0.18.0 -> 0.19.0@git:07e59eb6fc7de3f682f1c401b9cf9f0da9ee4b4a"
 importable = false
 
 [[audits.whatsys]]
@@ -5012,6 +5073,18 @@ criteria = "safe-to-deploy"
 user-id = 189 # Andrew Gallant (BurntSushi)
 start = "2020-01-11"
 end = "2024-05-03"
+
+[[trusted.windows]]
+criteria = "safe-to-deploy"
+user-id = 64539 # Kenny Kerr (kennykerr)
+start = "2021-01-15"
+end = "2025-01-30"
+
+[[trusted.windows-core]]
+criteria = "safe-to-deploy"
+user-id = 64539 # Kenny Kerr (kennykerr)
+start = "2021-11-15"
+end = "2024-09-20"
 
 [[trusted.windows-sys]]
 criteria = "safe-to-deploy"

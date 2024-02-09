@@ -42,6 +42,12 @@ urlbar-group-mdn =
 urlbar-group-pocket =
   .label = Recommended reads
 
+# A label shown above urlbar suggestions for businesses and other locations
+# in the user's city or a city they included in their search string (e.g., Yelp
+# suggestions).
+urlbar-group-local =
+  .label = Local recommendations
+
 # Block menu item shown in the result menu of top pick and quick suggest
 # results.
 urlbar-result-menu-dismiss-firefox-suggest =
@@ -145,7 +151,7 @@ firefox-suggest-pocket-bottom-text = { -pocket-brand-name } · Related to <stron
 
 # This string is shown in Yelp suggestions and indicates the suggestion is for
 # Yelp.
-firefox-suggest-yelp-bottom-text = Yelp
+firefox-suggest-yelp-bottom-text = Yelp · Sponsored
 
 ## These strings are used in the preferences UI (about:preferences). Their names
 ## follow the naming conventions of other strings used in the preferences UI.

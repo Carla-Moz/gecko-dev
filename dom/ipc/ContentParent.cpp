@@ -5220,10 +5220,9 @@ mozilla::ipc::IPCResult ContentParent::RecvBackUpXResources(
 #ifndef MOZ_X11
   MOZ_CRASH("This message only makes sense on X11 platforms");
 #else
-  MOZ_ASSERT(0 > mChildXSocketFdDup.get(), "Already backed up X resources??");
+  MOZ_ASSERT(!mChildXSocketFdDup, "Already backed up X resources??");
   if (aXSocketFd.IsValid()) {
-    auto rawFD = aXSocketFd.ClonePlatformHandle();
-    mChildXSocketFdDup.reset(rawFD.release());
+    mChildXSocketFdDup = aXSocketFd.ClonePlatformHandle();
   }
 #endif
   return IPC_OK();
@@ -5358,7 +5357,28 @@ bool ContentParent::DeallocPWebrtcGlobalParent(PWebrtcGlobalParent* aActor) {
 }
 #endif
 
-void ContentParent::MaybeInvokeDragSession(BrowserParent* aParent) {
+void ContentParent::GetIPCTransferableData(
+    nsIDragSession* aSession, BrowserParent* aParent,
+    nsTArray<IPCTransferableData>& aIPCTransferables) {
+  RefPtr<DataTransfer> transfer = aSession->GetDataTransfer();
+  if (!transfer) {
+    // Pass eDrop to get DataTransfer with external
+    // drag formats cached.
+    transfer = new DataTransfer(nullptr, eDrop, true, -1);
+    aSession->SetDataTransfer(transfer);
+  }
+  // Note, even though this fills the DataTransfer object with
+  // external data, the data is usually transfered over IPC lazily when
+  // needed.
+  transfer->FillAllExternalData();
+  nsCOMPtr<nsILoadContext> lc = aParent ? aParent->GetLoadContext() : nullptr;
+  nsCOMPtr<nsIArray> transferables = transfer->GetTransferables(lc);
+  nsContentUtils::TransferablesToIPCTransferableDatas(
+      transferables, aIPCTransferables, false, this);
+}
+
+void ContentParent::MaybeInvokeDragSession(BrowserParent* aParent,
+                                           EventMessage aMessage) {
   // dnd uses IPCBlob to transfer data to the content process and the IPC
   // message is sent as normal priority. When sending input events with input
   // priority, the message may be preempted by the later dnd events. To make
@@ -5369,28 +5389,17 @@ void ContentParent::MaybeInvokeDragSession(BrowserParent* aParent) {
 
   nsCOMPtr<nsIDragService> dragService =
       do_GetService("@mozilla.org/widget/dragservice;1");
-  if (dragService && dragService->MaybeAddChildProcess(this)) {
-    // We need to send transferable data to child process.
+  if (!dragService) {
+    return;
+  }
+
+  if (dragService->MaybeAddChildProcess(this)) {
     nsCOMPtr<nsIDragSession> session;
     dragService->GetCurrentSession(getter_AddRefs(session));
     if (session) {
+      // We need to send transferable data to child process.
       nsTArray<IPCTransferableData> ipcTransferables;
-      RefPtr<DataTransfer> transfer = session->GetDataTransfer();
-      if (!transfer) {
-        // Pass eDrop to get DataTransfer with external
-        // drag formats cached.
-        transfer = new DataTransfer(nullptr, eDrop, true, -1);
-        session->SetDataTransfer(transfer);
-      }
-      // Note, even though this fills the DataTransfer object with
-      // external data, the data is usually transfered over IPC lazily when
-      // needed.
-      transfer->FillAllExternalData();
-      nsCOMPtr<nsILoadContext> lc =
-          aParent ? aParent->GetLoadContext() : nullptr;
-      nsCOMPtr<nsIArray> transferables = transfer->GetTransferables(lc);
-      nsContentUtils::TransferablesToIPCTransferableDatas(
-          transferables, ipcTransferables, false, this);
+      GetIPCTransferableData(session, aParent, ipcTransferables);
       uint32_t action;
       session->GetDragAction(&action);
 
@@ -5400,6 +5409,19 @@ void ContentParent::MaybeInvokeDragSession(BrowserParent* aParent) {
       session->GetSourceTopWindowContext(getter_AddRefs(sourceTopWC));
       mozilla::Unused << SendInvokeDragSession(
           sourceWC, sourceTopWC, std::move(ipcTransferables), action);
+    }
+    return;
+  }
+
+  if (dragService->MustUpdateDataTransfer(aMessage)) {
+    nsCOMPtr<nsIDragSession> session;
+    dragService->GetCurrentSession(getter_AddRefs(session));
+    if (session) {
+      // We need to send transferable data to child process.
+      nsTArray<IPCTransferableData> ipcTransferables;
+      GetIPCTransferableData(session, aParent, ipcTransferables);
+      mozilla::Unused << SendUpdateDragSession(std::move(ipcTransferables),
+                                               aMessage);
     }
   }
 }
@@ -5901,11 +5923,13 @@ mozilla::ipc::IPCResult ContentParent::RecvInitializeFamily(
 }
 
 mozilla::ipc::IPCResult ContentParent::RecvSetCharacterMap(
-    const uint32_t& aGeneration, const mozilla::fontlist::Pointer& aFacePtr,
+    const uint32_t& aGeneration, const uint32_t& aFamilyIndex,
+    const bool& aAlias, const uint32_t& aFaceIndex,
     const gfxSparseBitSet& aMap) {
   auto* fontList = gfxPlatformFontList::PlatformFontList();
   MOZ_RELEASE_ASSERT(fontList, "gfxPlatformFontList not initialized?");
-  fontList->SetCharacterMap(aGeneration, aFacePtr, aMap);
+  fontList->SetCharacterMap(aGeneration, aFamilyIndex, aAlias, aFaceIndex,
+                            aMap);
   return IPC_OK();
 }
 
@@ -5918,10 +5942,10 @@ mozilla::ipc::IPCResult ContentParent::RecvInitOtherFamilyNames(
 }
 
 mozilla::ipc::IPCResult ContentParent::RecvSetupFamilyCharMap(
-    const uint32_t& aGeneration, const mozilla::fontlist::Pointer& aFamilyPtr) {
+    const uint32_t& aGeneration, const uint32_t& aIndex, const bool& aAlias) {
   auto* fontList = gfxPlatformFontList::PlatformFontList();
   MOZ_RELEASE_ASSERT(fontList, "gfxPlatformFontList not initialized?");
-  fontList->SetupFamilyCharMap(aGeneration, aFamilyPtr);
+  fontList->SetupFamilyCharMap(aGeneration, aIndex, aAlias);
   return IPC_OK();
 }
 

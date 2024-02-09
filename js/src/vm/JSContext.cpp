@@ -42,6 +42,7 @@
 #include "js/friend/ErrorMessages.h"  // js::GetErrorMessage, JSMSG_*
 #include "js/friend/StackLimits.h"    // js::ReportOverRecursed
 #include "js/MemoryCallbacks.h"
+#include "js/Prefs.h"
 #include "js/Printf.h"
 #include "js/PropertyAndElement.h"  // JS_GetProperty
 #include "js/Stack.h"  // JS::NativeStackSize, JS::NativeStackLimit, JS::NativeStackLimitMin
@@ -608,7 +609,7 @@ void js::ReportIsNullOrUndefinedForPropertyAccess(JSContext* cx, HandleValue v,
                                                   int vIndex, HandleId key) {
   MOZ_ASSERT(v.isNullOrUndefined());
 
-  if (!cx->realm()->creationOptions().getPropertyErrorMessageFixEnabled()) {
+  if (!JS::Prefs::property_error_message_fix()) {
     ReportIsNullOrUndefinedForPropertyAccess(cx, v, vIndex);
     return;
   }
@@ -1172,7 +1173,8 @@ bool JSContext::getPendingExceptionStack(MutableHandleValue rval) {
   RootedValue exception(this, unwrappedException());
   JS::ExceptionStatus prevStatus = status;
   clearPendingException();
-  if (!compartment()->wrap(this, &stack)) {
+  if (!compartment()->wrap(this, &exception) ||
+      !compartment()->wrap(this, &stack)) {
     return false;
   }
   this->check(stack);

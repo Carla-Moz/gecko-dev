@@ -17,7 +17,7 @@ class WebGLMethodDispatcher
     : public EmptyMethodDispatcher<WebGLMethodDispatcher> {};
 
 template <typename MethodT, MethodT Method>
-size_t IdByMethod() = delete;
+size_t IdByMethod();
 
 #define DEFINE_METHOD_DISPATCHER(_ID, _METHOD)                  \
   template <>                                                   \
@@ -102,6 +102,7 @@ DEFINE_ASYNC(HostWebGLContext::BindBuffer)
 DEFINE_ASYNC(HostWebGLContext::BindBufferRange)
 DEFINE_ASYNC(HostWebGLContext::CopyBufferSubData)
 DEFINE_ASYNC(HostWebGLContext::BufferData)
+DEFINE_ASYNC(HostWebGLContext::BufferData_SizeOnly)
 DEFINE_ASYNC(HostWebGLContext::BufferSubData)
 DEFINE_ASYNC(HostWebGLContext::BlitFramebuffer)
 DEFINE_ASYNC(HostWebGLContext::InvalidateFramebuffer)

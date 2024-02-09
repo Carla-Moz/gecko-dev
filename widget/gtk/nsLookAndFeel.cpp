@@ -189,6 +189,9 @@ nsLookAndFeel::nsLookAndFeel() {
       "notify::gtk-menu-popup-delay"_ns,
       // Affects DragThresholdX/Y
       "notify::gtk-dnd-drag-threshold"_ns,
+      // Affects titlebar actions loaded at moz_gtk_refresh().
+      "notify::gtk-titlebar-double-click"_ns,
+      "notify::gtk-titlebar-middle-click"_ns,
   };
 
   GtkSettings* settings = gtk_settings_get_default();
@@ -1343,8 +1346,7 @@ void nsLookAndFeel::MaybeApplyAdwaitaOverrides() {
     return;
   }
 
-  if (light.mFamily == ThemeFamily::Adwaita ||
-      light.mFamily == ThemeFamily::Yaru) {
+  if (light.mFamily == ThemeFamily::Adwaita) {
     // #323232 is rgba(0,0,0,.8) over #fafafa.
     light.mWindow =
         light.mDialog = {NS_RGB(0xfa, 0xfa, 0xfa), NS_RGB(0x32, 0x32, 0x32)};
@@ -1362,8 +1364,7 @@ void nsLookAndFeel::MaybeApplyAdwaitaOverrides() {
     light.mSidebarBorder = NS_RGBA(0, 0, 0, 18);
   }
 
-  if (dark.mFamily == ThemeFamily::Adwaita ||
-      dark.mFamily == ThemeFamily::Yaru) {
+  if (dark.mFamily == ThemeFamily::Adwaita) {
     dark.mWindow = {NS_RGB(0x24, 0x24, 0x24), NS_RGB(0xff, 0xff, 0xff)};
     dark.mDialog = {NS_RGB(0x38, 0x38, 0x38), NS_RGB(0xff, 0xff, 0xff)};
     dark.mField = {NS_RGB(0x3a, 0x3a, 0x3a), NS_RGB(0xff, 0xff, 0xff)};
@@ -1620,6 +1621,36 @@ void nsLookAndFeel::InitializeGlobalSettings() {
       *pos = i;
     }
   }
+
+  struct actionMapping {
+    TitlebarAction action;
+    char name[100];
+  } ActionMapping[] = {
+      {TitlebarAction::None, "none"},
+      {TitlebarAction::WindowLower, "lower"},
+      {TitlebarAction::WindowMenu, "menu"},
+      {TitlebarAction::WindowMinimize, "minimize"},
+      {TitlebarAction::WindowMaximize, "maximize"},
+      {TitlebarAction::WindowMaximizeToggle, "toggle-maximize"},
+  };
+
+  auto GetWindowAction = [&](const char* eventName) -> TitlebarAction {
+    gchar* action = nullptr;
+    g_object_get(settings, eventName, &action, nullptr);
+    if (!action) {
+      return TitlebarAction::None;
+    }
+    auto free = mozilla::MakeScopeExit([&] { g_free(action); });
+    for (auto const& mapping : ActionMapping) {
+      if (!strncmp(action, mapping.name, strlen(mapping.name))) {
+        return mapping.action;
+      }
+    }
+    return TitlebarAction::None;
+  };
+
+  mDoubleClickAction = GetWindowAction("gtk-titlebar-double-click");
+  mMiddleClickAction = GetWindowAction("gtk-titlebar-middle-click");
 }
 
 void nsLookAndFeel::ConfigureFinalEffectiveTheme() {
@@ -2229,6 +2260,12 @@ char16_t nsLookAndFeel::GetPasswordCharacterImpl() {
 bool nsLookAndFeel::GetEchoPasswordImpl() { return false; }
 
 bool nsLookAndFeel::GetDefaultDrawInTitlebar() { return sCSDAvailable; }
+
+nsXPLookAndFeel::TitlebarAction nsLookAndFeel::GetTitlebarAction(
+    TitlebarEvent aEvent) {
+  return aEvent == TitlebarEvent::Double_Click ? mDoubleClickAction
+                                               : mMiddleClickAction;
+}
 
 void nsLookAndFeel::GetThemeInfo(nsACString& aInfo) {
   aInfo.Append(mSystemTheme.mName);

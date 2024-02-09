@@ -499,7 +499,7 @@ class WebGLContext : public VRefCounted, public SupportsWeakPtr {
   // may differ subject to available format conversion options. Since this
   // operation uses an explicit copy, it inherently preserves the framebuffer
   // without need to set the preserveDrawingBuffer option.
-  void CopyToSwapChain(
+  bool CopyToSwapChain(
       WebGLFramebuffer*, layers::TextureType,
       const webgl::SwapChainOptions& options = webgl::SwapChainOptions(),
       layers::RemoteTextureOwnerClient* ownerClient = nullptr);
@@ -685,6 +685,8 @@ class WebGLContext : public VRefCounted, public SupportsWeakPtr {
 
   void BufferData(GLenum target, uint64_t dataLen, const uint8_t* data,
                   GLenum usage) const;
+  void UninitializedBufferData_SizeOnly(GLenum target, uint64_t dataLen,
+                                        GLenum usage) const;
   // The unsynchronized flag may allow for better performance when
   // interleaving buffer updates with draw calls. However, care must
   // be taken. This has similar semantics to glMapBufferRange's
@@ -1269,8 +1271,14 @@ class WebGLContext : public VRefCounted, public SupportsWeakPtr {
   void EnsureContextLostRemoteTextureOwner(
       const webgl::SwapChainOptions& options);
 
+ public:
+  void WaitForTxn(layers::RemoteTextureOwnerId ownerId,
+                  layers::RemoteTextureTxnType txnType,
+                  layers::RemoteTextureTxnId txnId);
+
   // --
 
+ protected:
   bool EnsureDefaultFB();
   bool ValidateAndInitFB(
       const WebGLFramebuffer* fb,

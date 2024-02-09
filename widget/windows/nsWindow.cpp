@@ -162,6 +162,7 @@
 #include "mozilla/StaticPrefs_dom.h"
 #include "mozilla/StaticPrefs_gfx.h"
 #include "mozilla/StaticPrefs_layout.h"
+#include "mozilla/StaticPrefs_ui.h"
 #include "mozilla/StaticPrefs_widget.h"
 #include "nsNativeAppSupportWin.h"
 #include "mozilla/browser/NimbusFeatures.h"
@@ -682,7 +683,9 @@ nsWindow::nsWindow(bool aIsChildWindow)
     if (!WinUtils::HasPackageIdentity()) {
       mozilla::widget::WinTaskbar::RegisterAppUserModelID();
     }
-    KeyboardLayout::GetInstance()->OnLayoutChange(::GetKeyboardLayout(0));
+    if (!StaticPrefs::ui_key_layout_load_when_first_needed()) {
+      KeyboardLayout::GetInstance()->OnLayoutChange(::GetKeyboardLayout(0));
+    }
 #if defined(ACCESSIBILITY)
     mozilla::TIPMessageHandler::Initialize();
 #endif  // defined(ACCESSIBILITY)
@@ -5738,7 +5741,7 @@ bool nsWindow::ProcessMessageInternal(UINT msg, WPARAM& wParam, LPARAM& lParam,
             sJustGotDeactivate = true;
           }
           if (mIsTopWidgetWindow) {
-            mLastKeyboardLayout = KeyboardLayout::GetInstance()->GetLayout();
+            mLastKeyboardLayout = KeyboardLayout::GetLayout();
           }
         } else {
           StopFlashing();
@@ -8197,12 +8200,29 @@ WPARAM nsWindow::wParamFromGlobalMouseState() {
   return result;
 }
 
-void nsWindow::PickerOpen() { mPickerDisplayCount++; }
+void nsWindow::PickerOpen() {
+  AssertIsOnMainThread();
+  mPickerDisplayCount++;
+}
 
 void nsWindow::PickerClosed() {
+  AssertIsOnMainThread();
   NS_ASSERTION(mPickerDisplayCount > 0, "mPickerDisplayCount out of sync!");
   if (!mPickerDisplayCount) return;
   mPickerDisplayCount--;
+
+  // WORKAROUND FOR UNDOCUMENTED BEHAVIOR: `IFileDialog::Show` disables the
+  // top-level ancestor of its provided owner-window. If the modal window's
+  // container process crashes, it will never get a chance to undo that, so we
+  // do it manually here.
+  //
+  // Note that this may cause problems in the embedded case if you reparent a
+  // subtree of the native window hierarchy containing a Gecko window while that
+  // Gecko window has a file-dialog open.
+  if (!mPickerDisplayCount) {
+    ::EnableWindow(::GetAncestor(GetWindowHandle(), GA_ROOT), TRUE);
+  }
+
   if (!mPickerDisplayCount && mDestroyCalled) {
     Destroy();
   }

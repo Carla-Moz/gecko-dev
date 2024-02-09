@@ -102,7 +102,7 @@ ChromeUtils.defineESModuleGetters(this, {
 });
 
 XPCOMUtils.defineLazyModuleGetters(this, {
-  CFRPageActions: "resource://activity-stream/lib/CFRPageActions.jsm",
+  CFRPageActions: "resource:///modules/asrouter/CFRPageActions.jsm",
 });
 
 ChromeUtils.defineLazyGetter(this, "fxAccounts", () => {
@@ -2008,6 +2008,34 @@ var gBrowserInit = {
         document
           .getElementById("toolbar-menubar")
           .removeAttribute("toolbarname");
+      }
+      if (!Services.policies.isAllowed("filepickers")) {
+        let savePageCommand = document.getElementById("Browser:SavePage");
+        let openFileCommand = document.getElementById("Browser:OpenFile");
+
+        savePageCommand.setAttribute("disabled", "true");
+        openFileCommand.setAttribute("disabled", "true");
+
+        document.addEventListener("FilePickerBlocked", function (event) {
+          let browser = event.target;
+
+          let notificationBox = browser
+            .getTabBrowser()
+            ?.getNotificationBox(browser);
+
+          // Prevent duplicate notifications
+          if (
+            notificationBox &&
+            !notificationBox.getNotificationWithValue("filepicker-blocked")
+          ) {
+            notificationBox.appendNotification("filepicker-blocked", {
+              label: {
+                "l10n-id": "filepicker-blocked-infobar",
+              },
+              priority: notificationBox.PRIORITY_INFO_LOW,
+            });
+          }
+        });
       }
       let policies = Services.policies.getActivePolicies();
       if ("ManagedBookmarks" in policies) {
@@ -9918,7 +9946,7 @@ var ConfirmationHint = {
     );
 
     this._panel.openPopup(anchor, {
-      position: options.position ?? "bottomcenter topleft",
+      position: options.position ?? "bottomleft topleft",
       triggerEvent: options.event,
     });
   },

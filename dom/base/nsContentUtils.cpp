@@ -10538,7 +10538,7 @@ static bool HtmlObjectContentSupportsDocument(const nsCString& aMimeType) {
 uint32_t nsContentUtils::HtmlObjectContentTypeForMIMEType(
     const nsCString& aMIMEType) {
   if (aMIMEType.IsEmpty()) {
-    return nsIObjectLoadingContent::TYPE_NULL;
+    return nsIObjectLoadingContent::TYPE_FALLBACK;
   }
 
   if (imgLoader::SupportImageWithMimeType(aMIMEType)) {
@@ -10555,11 +10555,7 @@ uint32_t nsContentUtils::HtmlObjectContentTypeForMIMEType(
     return nsIObjectLoadingContent::TYPE_DOCUMENT;
   }
 
-  if (nsObjectLoadingContent::IsFallbackMimeType(aMIMEType)) {
-    return nsIObjectLoadingContent::TYPE_FALLBACK;
-  }
-
-  return nsIObjectLoadingContent::TYPE_NULL;
+  return nsIObjectLoadingContent::TYPE_FALLBACK;
 }
 
 /* static */
@@ -11102,7 +11098,7 @@ bool nsContentUtils::IsURIInList(nsIURI* aURI, const nsCString& aList) {
       if (startIndexOfNextLevel <= 0) {
         break;
       }
-      host = "*"_ns + nsDependentCSubstring(host, startIndexOfNextLevel);
+      host.ReplaceLiteral(0, startIndexOfNextLevel, "*");
     }
   }
 
@@ -11384,6 +11380,10 @@ nsIContent* nsContentUtils::AttachDeclarativeShadowRoot(nsIContent* aHost,
 
   RefPtr shadowRoot = host->AttachShadow(init, IgnoreErrors(),
                                          Element::ShadowRootDeclarative::Yes);
+  if (shadowRoot) {
+    // https://html.spec.whatwg.org/#parsing-main-inhead:available-to-element-internals
+    shadowRoot->SetAvailableToElementInternals();
+  }
   return shadowRoot;
 }
 

@@ -207,11 +207,6 @@ struct nsContentAndOffset {
   int32_t mOffset = 0;
 };
 
-// Some Misc #defines
-#define SELECTION_DEBUG 0
-#define FORCE_SELECTION_UPDATE 1
-#define CALC_DEBUG 0
-
 #include "nsILineIterator.h"
 #include "prenv.h"
 
@@ -760,9 +755,12 @@ void nsIFrame::HandlePrimaryFrameStyleChange(ComputedStyle* aOldStyle) {
   const nsStyleDisplay* disp = StyleDisplay();
   const nsStyleDisplay* oldDisp =
       aOldStyle ? aOldStyle->StyleDisplay() : nullptr;
-  if (!oldDisp || oldDisp->mContainerType != disp->mContainerType) {
+
+  const bool wasQueryContainer = oldDisp && oldDisp->IsQueryContainer();
+  const bool isQueryContainer = disp->IsQueryContainer();
+  if (wasQueryContainer != isQueryContainer) {
     auto* pc = PresContext();
-    if (disp->mContainerType != StyleContainerType::Normal) {
+    if (isQueryContainer) {
       pc->RegisterContainerQueryFrame(this);
     } else {
       pc->UnregisterContainerQueryFrame(this);
@@ -815,7 +813,7 @@ void nsIFrame::Destroy(DestroyContext& aContext) {
   nsPresContext* pc = PresContext();
   mozilla::PresShell* ps = pc->GetPresShell();
   if (IsPrimaryFrame()) {
-    if (disp->mContainerType != StyleContainerType::Normal) {
+    if (disp->IsQueryContainer()) {
       pc->UnregisterContainerQueryFrame(this);
     }
     if (disp->ContentVisibility(*this) == StyleContentVisibility::Auto) {
@@ -5892,7 +5890,7 @@ StyleTouchAction nsIFrame::UsedTouchAction() const {
   return disp.mTouchAction;
 }
 
-Maybe<nsIFrame::Cursor> nsIFrame::GetCursor(const nsPoint&) {
+nsIFrame::Cursor nsIFrame::GetCursor(const nsPoint&) {
   StyleCursorKind kind = StyleUI()->Cursor().keyword;
   if (kind == StyleCursorKind::Auto) {
     // If this is editable, I-beam cursor is better for most elements.
@@ -5905,7 +5903,7 @@ Maybe<nsIFrame::Cursor> nsIFrame::GetCursor(const nsPoint&) {
     kind = StyleCursorKind::VerticalText;
   }
 
-  return Some(Cursor{kind, AllowCustomCursorImage::Yes});
+  return Cursor{kind, AllowCustomCursorImage::Yes};
 }
 
 // Resize and incremental reflow
@@ -7126,6 +7124,17 @@ bool nsIFrame::UpdateIsRelevantContent(
       aRelevancyToUpdate.contains(ContentRelevancyReason::Selected)) {
     setRelevancyValue(ContentRelevancyReason::Selected,
                       HasSelectionInSubtree());
+  }
+
+  // If the proximity to the viewport has not been determined yet,
+  // and neither the element nor its contents are focused or selected,
+  // we should wait for the determination of the proximity. Otherwise,
+  // there might be a redundant contentvisibilityautostatechange event.
+  // See https://github.com/w3c/csswg-drafts/issues/9803
+  bool isProximityToViewportDetermined =
+      oldRelevancy ? true : element->GetVisibleForContentVisibility().isSome();
+  if (!isProximityToViewportDetermined && newRelevancy.isEmpty()) {
+    return false;
   }
 
   bool overallRelevancyChanged =
@@ -9128,8 +9137,8 @@ nsresult nsIFrame::PeekOffsetForWord(PeekOffsetStruct* aPos, int32_t aOffset) {
       // significant.
       if (next.mJumpedLine && wordSelectEatSpace &&
           current.mFrame->HasSignificantTerminalNewline() &&
-          current.mFrame->StyleText()->mWhiteSpace !=
-              StyleWhiteSpace::PreLine) {
+          current.mFrame->StyleText()->mWhiteSpaceCollapse !=
+              StyleWhiteSpaceCollapse::PreserveBreaks) {
         current.mOffset -= 1;
       }
       break;

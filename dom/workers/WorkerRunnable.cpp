@@ -13,6 +13,7 @@
 #include "mozilla/AlreadyAddRefed.h"
 #include "mozilla/AppShutdown.h"
 #include "mozilla/Assertions.h"
+#include "mozilla/CycleCollectedJSContext.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/ErrorResult.h"
 #include "mozilla/Logging.h"
@@ -224,6 +225,22 @@ NS_IMETHODIMP
 WorkerRunnable::Run() {
   LOG(("WorkerRunnable::Run [%p]", this));
   bool targetIsWorkerThread = mTarget == WorkerThread;
+
+  if (targetIsWorkerThread) {
+    // On a worker thread, a WorkerRunnable should only run when there is an
+    // underlying WorkerThreadPrimaryRunnable active, which means we should
+    // find a CycleCollectedJSContext.
+    if (!CycleCollectedJSContext::Get()) {
+#if (defined(MOZ_COLLECTING_RUNNABLE_TELEMETRY) && defined(NIGHTLY_BUILD))
+      // We will only leak the static name string of the WorkerRunnable type
+      // we are trying to execute.
+      MOZ_CRASH_UNSAFE_PRINTF(
+          "Runnable '%s' executed after WorkerThreadPrimaryRunnable ended.",
+          this->mName);
+#endif
+      return NS_OK;
+    }
+  }
 
 #ifdef DEBUG
   if (targetIsWorkerThread) {

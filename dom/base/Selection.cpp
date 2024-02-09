@@ -256,41 +256,6 @@ static constexpr nsLiteralCString kNoRangeExistsError =
 namespace mozilla {
 
 /******************************************************************************
- * Utility methods defined in nsISelectionController.idl
- ******************************************************************************/
-
-const char* ToChar(SelectionType aSelectionType) {
-  switch (aSelectionType) {
-    case SelectionType::eInvalid:
-      return "SelectionType::eInvalid";
-    case SelectionType::eNone:
-      return "SelectionType::eNone";
-    case SelectionType::eNormal:
-      return "SelectionType::eNormal";
-    case SelectionType::eSpellCheck:
-      return "SelectionType::eSpellCheck";
-    case SelectionType::eIMERawClause:
-      return "SelectionType::eIMERawClause";
-    case SelectionType::eIMESelectedRawClause:
-      return "SelectionType::eIMESelectedRawClause";
-    case SelectionType::eIMEConvertedClause:
-      return "SelectionType::eIMEConvertedClause";
-    case SelectionType::eIMESelectedClause:
-      return "SelectionType::eIMESelectedClause";
-    case SelectionType::eAccessibility:
-      return "SelectionType::eAccessibility";
-    case SelectionType::eFind:
-      return "SelectionType::eFind";
-    case SelectionType::eURLSecondary:
-      return "SelectionType::eURLSecondary";
-    case SelectionType::eURLStrikeout:
-      return "SelectionType::eURLStrikeout";
-    default:
-      return "Invalid SelectionType";
-  }
-}
-
-/******************************************************************************
  * Utility methods defined in nsISelectionListener.idl
  ******************************************************************************/
 
@@ -2286,6 +2251,10 @@ void Selection::AddRangeAndSelectFramesAndNotifyListenersInternal(
 
   // Be aware, this instance may be destroyed after this call.
   NotifySelectionListeners();
+  // Range order is guaranteed after adding a range.
+  // Therefore, this flag can be reset to avoid
+  // another unnecessary and costly reordering.
+  mStyledRanges.mRangesMightHaveChanged = false;
 }
 
 void Selection::AddHighlightRangeAndSelectFramesAndNotifyListeners(
@@ -2304,7 +2273,12 @@ void Selection::AddHighlightRangeAndSelectFramesAndNotifyListeners(
   SelectFrames(presContext, aRange, true);
 
   // Be aware, this instance may be destroyed after this call.
+  RefPtr<Selection> kungFuDeathGrip(this);
   NotifySelectionListeners();
+  // Range order is guaranteed after adding a range.
+  // Therefore, this flag can be reset to avoid
+  // another unnecessary and costly reordering.
+  mStyledRanges.mRangesMightHaveChanged = false;
 }
 
 // Selection::RemoveRangeAndUnselectFramesAndNotifyListeners
@@ -3685,9 +3659,15 @@ void Selection::DeleteFromDocument(ErrorResult& aRv) {
     return;
   }
 
-  for (uint32_t rangeIdx = 0; rangeIdx < RangeCount(); ++rangeIdx) {
-    RefPtr<nsRange> range = GetRangeAt(rangeIdx);
-    range->DeleteContents(aRv);
+  // nsRange::DeleteContents() may run script, let's store all ranges first.
+  AutoTArray<RefPtr<nsRange>, 1> ranges;
+  MOZ_ASSERT(RangeCount() == mStyledRanges.mRanges.Length());
+  ranges.SetCapacity(RangeCount());
+  for (uint32_t index : IntegerRange(RangeCount())) {
+    ranges.AppendElement(mStyledRanges.mRanges[index].mRange->AsDynamicRange());
+  }
+  for (const auto& range : ranges) {
+    MOZ_KnownLive(range)->DeleteContents(aRv);
     if (aRv.Failed()) {
       return;
     }

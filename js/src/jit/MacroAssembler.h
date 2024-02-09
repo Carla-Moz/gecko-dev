@@ -231,7 +231,7 @@ struct ExpandoAndGeneration;
 namespace js {
 
 class StaticStrings;
-class TypedArrayObject;
+class FixedLengthTypedArrayObject;
 
 enum class NativeIteratorIndices : uint32_t;
 
@@ -4069,11 +4069,43 @@ class MacroAssembler : public MacroAssemblerSpecific {
                            Register typeDefData, Register temp1, Register temp2,
                            Label* fail, gc::AllocKind allocKind,
                            bool zeroFields);
+  // Allocates a wasm array with a dynamic number of elements.
+  //
+  // `numElements` and `typeDefData` will be preserved. `instance` and `result`
+  // may be the same register, in which case `instance` will be clobbered.
+  void wasmNewArrayObject(Register instance, Register result,
+                          Register numElements, Register typeDefData,
+                          Register temp, Label* fail, uint32_t elemSize,
+                          bool zeroFields);
+  // Allocates a wasm array with a fixed number of elements.
+  //
   // `typeDefData` will be preserved. `instance` and `result` may be the same
   // register, in which case `instance` will be clobbered.
+  void wasmNewArrayObjectFixed(Register instance, Register result,
+                               Register typeDefData, Register temp1,
+                               Register temp2, Label* fail,
+                               uint32_t numElements, uint32_t storageBytes,
+                               bool zeroFields);
+
+  // This function handles nursery allocations for wasm. For JS, see
+  // MacroAssembler::bumpPointerAllocate.
+  //
+  // `typeDefData` will be preserved. `instance` and `result` may be the same
+  // register, in which case `instance` will be clobbered.
+  //
+  // See also the dynamically-sized version,
+  // MacroAssembler::wasmBumpPointerAllocateDynamic.
   void wasmBumpPointerAllocate(Register instance, Register result,
                                Register typeDefData, Register temp1,
                                Register temp2, Label* fail, uint32_t size);
+  // This function handles nursery allocations for wasm of dynamic size. For
+  // fixed-size allocations, see MacroAssembler::wasmBumpPointerAllocate.
+  //
+  // `typeDefData` and `size` will be preserved. `instance` and `result` may be
+  // the same register, in which case `instance` will be clobbered.
+  void wasmBumpPointerAllocateDynamic(Register instance, Register result,
+                                      Register typeDefData, Register size,
+                                      Register temp1, Label* fail);
 
   // Compute ptr += (indexTemp32 << shift) where shift can be any value < 32.
   // May destroy indexTemp32.  The value of indexTemp32 must be positive, and it
@@ -5230,6 +5262,8 @@ class MacroAssembler : public MacroAssemblerSpecific {
 
   void typedArrayElementSize(Register obj, Register output);
   void branchIfClassIsNotTypedArray(Register clasp, Label* notTypedArray);
+  void branchIfClassIsNotFixedLengthTypedArray(Register clasp,
+                                               Label* notTypedArray);
 
   void branchIfHasDetachedArrayBuffer(Register obj, Register temp,
                                       Label* label);
@@ -5450,7 +5484,7 @@ class MacroAssembler : public MacroAssemblerSpecific {
 
   void initTypedArraySlots(Register obj, Register temp, Register lengthReg,
                            LiveRegisterSet liveRegs, Label* fail,
-                           TypedArrayObject* templateObj,
+                           FixedLengthTypedArrayObject* templateObj,
                            TypedArrayLength lengthKind);
 
   void newGCString(Register result, Register temp, gc::Heap initialHeap,
@@ -5502,7 +5536,8 @@ class MacroAssembler : public MacroAssemblerSpecific {
   void setIsDefinitelyTypedArrayConstructor(Register obj, Register output);
 
   void loadMegamorphicCache(Register dest);
-  void loadStringToAtomCacheLastLookups(Register dest);
+  void lookupStringInAtomCacheLastLookups(Register str, Register scratch,
+                                          Label* fail);
   void loadMegamorphicSetPropCache(Register dest);
 
   void loadAtomOrSymbolAndHash(ValueOperand value, Register outId,

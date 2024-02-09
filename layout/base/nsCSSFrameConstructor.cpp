@@ -2278,7 +2278,9 @@ nsIFrame* nsCSSFrameConstructor::ConstructTableCell(
   if (isMathMLContent) {
     cellInnerFrame = NS_NewMathMLmtdInnerFrame(mPresShell, innerPseudoStyle);
   } else {
-    isScrollable = innerPseudoStyle->StyleDisplay()->IsScrollableOverflow();
+    isScrollable = innerPseudoStyle->StyleDisplay()->IsScrollableOverflow() &&
+                   !aState.mPresContext->IsPaginated() &&
+                   StaticPrefs::layout_tables_scrollable_cells();
     if (isScrollable) {
       innerPseudoStyle = BeginBuildingScrollFrame(
           aState, content, innerPseudoStyle, cellFrame,
@@ -3670,19 +3672,14 @@ nsCSSFrameConstructor::FindObjectData(const Element& aElement,
                "nsIObjectLoadingContent!");
   objContent->GetDisplayedType(&type);
 
-  if (type == nsIObjectLoadingContent::TYPE_FALLBACK &&
-      !StaticPrefs::layout_use_plugin_fallback()) {
-    type = nsIObjectLoadingContent::TYPE_NULL;
-  }
-
   static constexpr FrameConstructionDataByInt sObjectData[] = {
+      // TODO(emilio): Can we remove the NS_NewEmptyFrame case and just use a
+      // subdocument frame here?
       SIMPLE_INT_CREATE(nsIObjectLoadingContent::TYPE_LOADING,
                         NS_NewEmptyFrame),
-      SIMPLE_INT_CREATE(nsIObjectLoadingContent::TYPE_FALLBACK,
-                        ToCreationFunc(NS_NewBlockFrame)),
       SIMPLE_INT_CREATE(nsIObjectLoadingContent::TYPE_DOCUMENT,
                         NS_NewSubDocumentFrame),
-      // Nothing for TYPE_NULL so we'll construct frames by display there
+      // Nothing for TYPE_FALLBACK so we'll construct frames by display there
   };
 
   return FindDataByInt((int32_t)type, aElement, aStyle, sObjectData,

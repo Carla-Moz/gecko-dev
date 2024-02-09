@@ -43,10 +43,7 @@ class RecentBrowsingInView extends ViewPage {
         href="chrome://browser/content/firefoxview/firefoxview.css"
       />
       <div class="sticky-container bottom-fade">
-        <h2
-          class="page-header heading-large"
-          data-l10n-id="firefoxview-overview-header"
-        ></h2>
+        <h2 class="page-header" data-l10n-id="firefoxview-overview-header"></h2>
         ${when(
           isSearchEnabled(),
           () => html`<div class="search-container">
@@ -54,6 +51,7 @@ class RecentBrowsingInView extends ViewPage {
               data-l10n-id="firefoxview-search-text-box-recentbrowsing"
               data-l10n-attrs="placeholder"
               .size=${this.searchTextboxSize}
+              pageName="recentbrowsing"
             ></fxview-search-textbox>
           </div>`
         )}

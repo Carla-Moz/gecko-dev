@@ -661,6 +661,23 @@ bool WindowGlobalParent::IsCurrentGlobal() {
   return CanSend() && BrowsingContext()->GetCurrentWindowGlobal() == this;
 }
 
+bool WindowGlobalParent::IsActiveInTab() {
+  if (!CanSend()) {
+    return false;
+  }
+
+  CanonicalBrowsingContext* bc = BrowsingContext();
+  if (!bc || bc->GetCurrentWindowGlobal() != this) {
+    return false;
+  }
+
+  // We check the top BC so we don't need to worry about getting a stale value.
+  // That may not be necessary.
+  MOZ_ASSERT(bc->Top()->IsInBFCache() == bc->IsInBFCache(),
+             "BFCache bit out of sync?");
+  return bc->AncestorsAreCurrent() && !bc->Top()->IsInBFCache();
+}
+
 namespace {
 
 class ShareHandler final : public PromiseNativeHandler {
@@ -1158,7 +1175,6 @@ void WindowGlobalParent::FinishAccumulatingPageUseCounters() {
           nsContentUtils::TruncatedURLForDisplay(mDocumentURI));
     }
 
-    Telemetry::Accumulate(Telemetry::TOP_LEVEL_CONTENT_DOCUMENTS_DESTROYED, 1);
     glean::use_counter::top_level_content_documents_destroyed.Add();
 
     bool any = false;
@@ -1168,14 +1184,11 @@ void WindowGlobalParent::FinishAccumulatingPageUseCounters() {
         continue;
       }
       any = true;
-      auto id = static_cast<Telemetry::HistogramID>(
-          Telemetry::HistogramFirstUseCounter + uc * 2 + 1);
+      const char* metricName = IncrementUseCounter(uc, /* aIsPage = */ true);
       if (dumpCounters) {
-        printf_stderr("USE_COUNTER_PAGE: %s - %s\n",
-                      Telemetry::GetHistogramName(id), urlForLogging->get());
+        printf_stderr("USE_COUNTER_PAGE: %s - %s\n", metricName,
+                      urlForLogging->get());
       }
-      Telemetry::Accumulate(id, 1);
-      IncrementUseCounter(uc, /* aIsPage = */ true);
     }
 
     if (!any) {

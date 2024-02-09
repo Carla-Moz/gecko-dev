@@ -692,18 +692,18 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
           return ICInterpretOpResult::NextIC;
         }
         break;
-      case GuardClassKind::ArrayBuffer:
-        if (object->getClass() != &ArrayBufferObject::class_) {
+      case GuardClassKind::FixedLengthArrayBuffer:
+        if (object->getClass() != &FixedLengthArrayBufferObject::class_) {
           return ICInterpretOpResult::NextIC;
         }
         break;
-      case GuardClassKind::SharedArrayBuffer:
-        if (object->getClass() != &SharedArrayBufferObject::class_) {
+      case GuardClassKind::FixedLengthSharedArrayBuffer:
+        if (object->getClass() != &FixedLengthSharedArrayBufferObject::class_) {
           return ICInterpretOpResult::NextIC;
         }
         break;
-      case GuardClassKind::DataView:
-        if (object->getClass() != &DataViewObject::class_) {
+      case GuardClassKind::FixedLengthDataView:
+        if (object->getClass() != &FixedLengthDataViewObject::class_) {
           return ICInterpretOpResult::NextIC;
         }
         break;
@@ -1715,6 +1715,7 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
   CACHEOP_CASE_UNIMPL(GuardIsNotProxy)
   CACHEOP_CASE_UNIMPL(GuardIsNotArrayBufferMaybeShared)
   CACHEOP_CASE_UNIMPL(GuardIsTypedArray)
+  CACHEOP_CASE_UNIMPL(GuardIsFixedLengthTypedArray)
   CACHEOP_CASE_UNIMPL(GuardHasProxyHandler)
   CACHEOP_CASE_UNIMPL(GuardIsNotDOMProxy)
   CACHEOP_CASE_UNIMPL(GuardObjectIdentity)
@@ -1722,6 +1723,7 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
   CACHEOP_CASE_UNIMPL(GuardStringToIndex)
   CACHEOP_CASE_UNIMPL(GuardStringToInt32)
   CACHEOP_CASE_UNIMPL(GuardStringToNumber)
+  CACHEOP_CASE_UNIMPL(StringToAtom)
   CACHEOP_CASE_UNIMPL(BooleanToNumber)
   CACHEOP_CASE_UNIMPL(GuardHasGetterSetter)
   CACHEOP_CASE_UNIMPL(GuardInt32IsNonNegative)
@@ -1748,11 +1750,13 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
   CACHEOP_CASE_UNIMPL(LoadWrapperTarget)
   CACHEOP_CASE_UNIMPL(LoadValueTag)
   CACHEOP_CASE_UNIMPL(TruncateDoubleToUInt32)
+  CACHEOP_CASE_UNIMPL(DoubleToUint8Clamped)
   CACHEOP_CASE_UNIMPL(MegamorphicLoadSlotResult)
   CACHEOP_CASE_UNIMPL(MegamorphicLoadSlotByValueResult)
   CACHEOP_CASE_UNIMPL(MegamorphicStoreSlot)
   CACHEOP_CASE_UNIMPL(MegamorphicSetElement)
   CACHEOP_CASE_UNIMPL(MegamorphicHasPropResult)
+  CACHEOP_CASE_UNIMPL(SmallObjectVariableKeyHasOwnResult)
   CACHEOP_CASE_UNIMPL(ObjectToIteratorResult)
   CACHEOP_CASE_UNIMPL(ValueToIteratorResult)
   CACHEOP_CASE_UNIMPL(LoadDOMExpandoValue)
@@ -5075,12 +5079,12 @@ PBIResult PortableBaselineInterpret(JSContext* cx_, State& state, Stack& stack,
       {
         PUSH_EXIT_FRAME();
         if (frame->isDebuggee()) {
-          TRACE_PRINTF("doing DebugLeaveThenRecreateLexicalEnv\n");
-          if (!DebugLeaveThenRecreateLexicalEnv(cx, frame, pc)) {
+          TRACE_PRINTF("doing DebuggeeRecreateLexicalEnv\n");
+          if (!DebuggeeRecreateLexicalEnv(cx, frame, pc)) {
             goto error;
           }
         } else {
-          if (!frame->recreateLexicalEnvironment(cx)) {
+          if (!frame->recreateLexicalEnvironment<false>(cx)) {
             goto error;
           }
         }
@@ -5092,12 +5096,12 @@ PBIResult PortableBaselineInterpret(JSContext* cx_, State& state, Stack& stack,
       {
         PUSH_EXIT_FRAME();
         if (frame->isDebuggee()) {
-          TRACE_PRINTF("doing DebugLeaveThenFreshenLexicalEnv\n");
-          if (!DebugLeaveThenFreshenLexicalEnv(cx, frame, pc)) {
+          TRACE_PRINTF("doing DebuggeeFreshenLexicalEnv\n");
+          if (!DebuggeeFreshenLexicalEnv(cx, frame, pc)) {
             goto error;
           }
         } else {
-          if (!frame->freshenLexicalEnvironment(cx)) {
+          if (!frame->freshenLexicalEnvironment<false>(cx)) {
             goto error;
           }
         }

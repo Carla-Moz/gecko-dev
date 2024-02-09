@@ -3,8 +3,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 @use 'sass:math';
 @import 'chrome://global/skin/design-system/tokens-brand.css';
-@import '../../newtab/content-src/styles/feature-callout';
-@import '../../newtab/content-src/styles/shopping';
+@import '../../asrouter/content-src/styles/feature-callout';
+@import '../../asrouter/content-src/styles/shopping';
 
 /* stylelint-disable max-nesting-depth */
 
@@ -452,10 +452,41 @@ html {
             font-weight: 400;
           }
 
+          .install-button-wrapper {
+            display: flex;
+          }
+
           button {
             align-self: center;
-            margin-inline: auto 12px;
+            width: 124px;
           }
+        }
+
+        .loader {
+          width: 1em;
+          height: 1em;
+          border: 3px solid var(--in-content-primary-button-text-color);
+          border-bottom-color: transparent;
+          border-radius: 50%;
+          box-sizing: border-box;
+          animation: rotation 1s linear infinite;
+          justify-self: center;
+        }
+
+        @keyframes rotation {
+          0% {
+            transform: rotate(0deg);
+          }
+
+          100% {
+            transform: rotate(360deg);
+          }
+        }
+
+        .loaderContainer {
+          display: flex;
+          padding: 1.5px 37.5px;
+          margin: auto;
         }
       }
     }
@@ -610,19 +641,19 @@ html {
 
               .additional-cta {
                 margin: 0;
-              }
 
-              &.cta-link {
-                @include text-link-styles;
+                &.cta-link {
+                  @include text-link-styles;
 
-                padding: 0;
-                font-weight: normal;
-              }
+                  padding: 0;
+                  font-weight: normal;
+                }
 
-              &.secondary {
-                &:hover,
-                &[open] {
-                  background-color: var(--in-content-button-background-hover);
+                &.secondary {
+                  &:hover,
+                  &[open] {
+                    background-color: var(--in-content-button-background-hover);
+                  }
                 }
               }
             }
